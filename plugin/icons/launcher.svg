@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144">
+  <title>Open HDMI matrix</title>
+  <rect width="144" height="144" fill="#050708"/>
+  <rect x="38" y="22" width="68" height="100" rx="17" fill="#132129" stroke="#38515d" stroke-width="4"/>
+
+  <path d="M18 45h27l22 27h22l18-27h19" fill="none" stroke="#344852" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M18 99h27l22-27h22l18 27h19" fill="none" stroke="#344852" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <path d="M18 45h27l22 27h22l18 27h19" fill="none" stroke="#38e1e4" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="18" cy="45" r="11" fill="#b78aff"/>
+  <circle cx="18" cy="99" r="8" fill="#344852"/>
+  <circle cx="126" cy="45" r="8" fill="#344852"/>
+  <circle cx="126" cy="99" r="11" fill="#ffb547"/>
+
+  <rect x="58" y="58" width="28" height="28" rx="7" fill="#050708" stroke="#f7fbfc" stroke-width="5" transform="rotate(45 72 72)"/>
+  <circle cx="72" cy="72" r="5" fill="#38e1e4"/>
+</svg>

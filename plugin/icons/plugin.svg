@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144">
+  <title>HDMI matrix</title>
+  <rect width="144" height="144" fill="#050708"/>
+  <rect x="34" y="24" width="76" height="96" rx="20" fill="#132129" stroke="#38515d" stroke-width="5"/>
+
+  <path d="M15 43h30l22 29h20l21 29h21" fill="none" stroke="#38e1e4" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M15 101h30l22-29h20l21-29h21" fill="none" stroke="#344852" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <circle cx="16" cy="43" r="12" fill="#b78aff"/>
+  <circle cx="16" cy="101" r="9" fill="#344852"/>
+  <circle cx="128" cy="43" r="9" fill="#344852"/>
+  <circle cx="128" cy="101" r="12" fill="#ffb547"/>
+
+  <rect x="57" y="57" width="30" height="30" rx="8" fill="#050708" stroke="#f7fbfc" stroke-width="6" transform="rotate(45 72 72)"/>
+  <circle cx="72" cy="72" r="6" fill="#38e1e4"/>
+</svg>

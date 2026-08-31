@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144">
+  <title>HDMI matrix panel key</title>
+  <rect width="144" height="144" fill="#080b0d"/>
+  <rect x="12" y="12" width="120" height="120" rx="14" fill="none" stroke="#30c5c7" stroke-width="4"/>
+  <circle cx="43" cy="45" r="12" fill="#ae7bff"/>
+  <circle cx="101" cy="45" r="12" fill="#ffb547"/>
+  <path d="M55 45h34M43 57v30h58V57" fill="none" stroke="#f4f7f8" stroke-width="5"/>
+</svg>

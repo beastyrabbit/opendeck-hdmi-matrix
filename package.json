@@ -1,0 +1,33 @@
+{
+	"name": "opendeck-hdmi-matrix-plugin",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"description": "OpenDeck control surface for the HDP-MXC88A HDMI matrix",
+	"scripts": {
+		"build": "tsx scripts/build.ts",
+		"check": "tsc --noEmit",
+		"format": "biome format --write .",
+		"lint": "biome check .",
+		"pack": "pnpm build",
+		"setup:opendeck": "tsx scripts/setup-opendeck.ts",
+		"test": "tsx --test tests/**/*.test.ts",
+		"verify": "pnpm check && pnpm lint && pnpm test && pnpm build"
+	},
+	"engines": {
+		"node": ">=20"
+	},
+	"packageManager": "pnpm@11.3.0",
+	"devDependencies": {
+		"@biomejs/biome": "^2.5.11",
+		"@elgato/cli": "^1.9.0",
+		"@types/node": "^26.4.0",
+		"@types/ws": "^8.18.1",
+		"esbuild": "^0.28.2",
+		"tsx": "^4.23.13",
+		"typescript": "^7.0.2"
+	},
+	"dependencies": {
+		"ws": "^8.21.3"
+	}
+}

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144">
+  <title>Back to default profile</title>
+  <rect width="144" height="144" fill="#080b0d"/>
+  <rect x="8" y="8" width="128" height="128" rx="16" fill="#080b0d" stroke="#9cb0ba" stroke-width="3"/>
+  <path d="M112 72H35m0 0 31-31M35 72l31 31" fill="none" stroke="#f4f7f8" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
