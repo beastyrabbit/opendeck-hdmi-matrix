@@ -1,7 +1,0 @@
-{
-	"matrixUrl": "http://192.168.1.100",
-	"matrixProfile": "HDMI Matrix",
-	"returnProfile": "Default",
-	"pollIntervalMs": 4000,
-	"requestTimeoutMs": 3000
-}

@@ -69,37 +69,36 @@ Requirements:
 1. Download `de.beasty.hdmi-matrix.streamDeckPlugin` from the [latest GitHub release](https://github.com/beastyrabbit/opendeck-hdmi-matrix/releases/latest).
 2. Install it from OpenDeck's plugin manager.
 3. Quit OpenDeck completely.
-4. Run the setup command for your platform and replace `MATRIX-IP` with the matrix address.
+4. Run the setup command for your platform.
 
 Linux:
 
 ```bash
-node ~/.config/opendeck/plugins/de.beasty.hdmi-matrix.sdPlugin/setup-opendeck.mjs \
-  --matrix-url http://MATRIX-IP
+node ~/.config/opendeck/plugins/de.beasty.hdmi-matrix.sdPlugin/setup-opendeck.mjs
 ```
 
 macOS:
 
 ```bash
-node "$HOME/Library/Application Support/opendeck/plugins/de.beasty.hdmi-matrix.sdPlugin/setup-opendeck.mjs" \
-  --matrix-url http://MATRIX-IP
+node "$HOME/Library/Application Support/opendeck/plugins/de.beasty.hdmi-matrix.sdPlugin/setup-opendeck.mjs"
 ```
 
 Windows PowerShell:
 
 ```powershell
-node "$env:APPDATA\opendeck\plugins\de.beasty.hdmi-matrix.sdPlugin\setup-opendeck.mjs" `
-  --matrix-url http://MATRIX-IP
+node "$env:APPDATA\opendeck\plugins\de.beasty.hdmi-matrix.sdPlugin\setup-opendeck.mjs"
 ```
 
 5. Start OpenDeck. The setup creates the `HDMI Matrix` profile and adds a launcher to the first free key in `Default`.
+6. In OpenDeck, open the `HDMI Matrix` profile and select any Matrix key. Enter the address of the web interface under `Matrix URL` in the settings panel, then press `Save connection`.
+
+OpenDeck stores the address as a global plugin setting. Every Matrix key uses it, so you only set it once. The build and setup scripts never contain or write the address.
 
 For a Flatpak installation, pass its configuration directory explicitly:
 
 ```bash
 node ~/.var/app/me.amankhanna.opendeck/config/opendeck/plugins/de.beasty.hdmi-matrix.sdPlugin/setup-opendeck.mjs \
-  --config ~/.var/app/me.amankhanna.opendeck/config/opendeck \
-  --matrix-url http://MATRIX-IP
+  --config ~/.var/app/me.amankhanna.opendeck/config/opendeck
 ```
 
 Custom profile names are supported:
@@ -107,8 +106,7 @@ Custom profile names are supported:
 ```bash
 node setup-opendeck.mjs \
   --matrix-profile "Matrix" \
-  --return-profile "My main profile" \
-  --matrix-url http://MATRIX-IP
+  --return-profile "My main profile"
 ```
 
 Quit OpenDeck before running the setup. On Linux, the script refuses to edit profiles while OpenDeck is running. It also backs up an existing profile before replacing an incompatible Matrix layout.
@@ -119,6 +117,18 @@ Press the launcher in the main profile. In the Matrix profile, select an output 
 
 ARC, mute and stream always control the amber selected output. Turning stream off disables that HDMI output while retaining its last input mapping. Turning it on restores the output with the same mapping.
 
+## How it works
+
+The setup script writes a 32-key OpenDeck profile and places a native profile-switch button in the main profile. The launcher and back buttons use OpenDeck's Starter Pack. The remaining keys belong to this plugin.
+
+When the Matrix profile becomes visible, the plugin reads three status records from `POST /cgi-bin/instr`: inputs, outputs and video routing. It uses those records to draw every key. Disconnected outputs, inputs without a signal and factory-named presets render as blank keys. The plugin repeats the status read every four seconds and after each button press.
+
+Output selection is local to each Stream Deck. Pressing an active output marks it amber without changing a route. Pressing an input then sends `video switch` with the selected output and input port. Presets send `preset set`. ARC, mute and stream read the current value first and send the inverse value for the selected output.
+
+The Matrix URL comes only from OpenDeck's global plugin settings. The property inspector saves it through the OpenAction `setGlobalSettings` event. The plugin receives the setting, creates the local HTTP client and refreshes the visible keys. No cloud service or external server takes part.
+
+The matrix accepts one command at a time, so the plugin serializes all HTTP requests. A request times out after three seconds. Invalid JSON is retried twice because this firmware occasionally returns an incomplete response.
+
 ## Build from source
 
 ```bash
@@ -127,6 +137,30 @@ pnpm verify
 ```
 
 The build writes the plugin bundle, setup script and installable package to `dist/`. Tests use a local HTTP mock and never change a real matrix route.
+
+### Local deployment on Linux
+
+During development, this command handles the complete local update:
+
+```bash
+pnpm deploy:opendeck
+```
+
+It builds the plugin, stops a running OpenDeck process, installs the new build, updates the Matrix profile and starts OpenDeck again with its previous command-line arguments. OpenDeck keeps the Matrix URL in its global plugin settings, outside the plugin directory, so local deployments do not overwrite it. If OpenDeck was already stopped, the command leaves it stopped.
+
+Pass profile setup options after `--`:
+
+```bash
+pnpm deploy:opendeck -- --matrix-profile "Matrix" --return-profile "Studio"
+```
+
+Preview the operation without stopping or changing OpenDeck:
+
+```bash
+pnpm deploy:opendeck -- --dry-run
+```
+
+The dry run still refreshes the local `dist/` build. Automatic process restart is Linux-only. On macOS and Windows, use `pnpm build`, quit OpenDeck and run the bundled setup script manually.
 
 ## OpenAction Marketplace
 

@@ -6,7 +6,7 @@ import { createProfile } from "../scripts/profile.js";
 it("creates the requested four-row Stream Deck XL layout", () => {
 	const profile = createProfile() as {
 		keys: Array<{
-			action?: { uuid?: string };
+			action?: { property_inspector?: string; uuid?: string };
 			settings?: { index?: number; profile?: string; role?: string };
 		} | null>;
 	};
@@ -28,4 +28,8 @@ it("creates the requested four-row Stream Deck XL layout", () => {
 	assert.equal(profile.keys[18]?.settings?.role, "arc");
 	assert.equal(profile.keys[19]?.settings?.role, "mute");
 	assert.equal(profile.keys[20]?.settings?.role, "stream");
+	assert.equal(
+		profile.keys[0]?.action?.property_inspector,
+		"plugins/de.beasty.hdmi-matrix.sdPlugin/property-inspector/index.html",
+	);
 });

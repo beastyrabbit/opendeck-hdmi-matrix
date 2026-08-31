@@ -39,7 +39,7 @@ export class MatrixApi {
 	private pending: Promise<void> = Promise.resolve();
 
 	constructor(baseUrl: string, requestTimeoutMs = 3000, fetchImpl: Fetch = fetch) {
-		this.baseUrl = baseUrl.replace(/\/$/, "");
+		this.baseUrl = normalizeMatrixUrl(baseUrl);
 		this.requestTimeoutMs = requestTimeoutMs;
 		this.fetch = fetchImpl;
 	}
@@ -100,6 +100,14 @@ export class MatrixApi {
 		}
 		throw new Error(`Matrix request failed for ${comhead}`);
 	}
+}
+
+export function normalizeMatrixUrl(value: string): string {
+	const url = new URL(value.trim());
+	if (url.protocol !== "http:" && url.protocol !== "https:") {
+		throw new Error("Matrix URL must use HTTP or HTTPS.");
+	}
+	return url.origin;
 }
 
 function port(value: number): number {

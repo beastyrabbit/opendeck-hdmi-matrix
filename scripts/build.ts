@@ -15,6 +15,7 @@ await rm(dist, { force: true, recursive: true });
 await mkdir(resolve(plugin, "bin"), { recursive: true });
 await mkdir(resolve(plugin, "icons"), { recursive: true });
 await mkdir(resolve(plugin, "opendeck"), { recursive: true });
+await mkdir(resolve(plugin, "property-inspector"), { recursive: true });
 
 await build({
 	bundle: true,
@@ -30,6 +31,7 @@ await build({
 
 await cp(resolve(root, "plugin/manifest.json"), resolve(plugin, "manifest.json"));
 await cp(resolve(root, "plugin/icons"), resolve(plugin, "icons"), { recursive: true });
+await cp(resolve(root, "plugin/property-inspector"), resolve(plugin, "property-inspector"), { recursive: true });
 await writeFile(resolve(plugin, "config.json"), `${JSON.stringify(DEFAULT_CONFIG, null, 2)}\n`);
 await writeFile(resolve(plugin, "opendeck/HDMI Matrix.json"), `${JSON.stringify(createProfile(), null, 2)}\n`);
 

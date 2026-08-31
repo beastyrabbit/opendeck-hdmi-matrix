@@ -1,15 +1,32 @@
 import { loadConfig } from "./config.js";
 import { MatrixController } from "./controller.js";
 import { MatrixApi } from "./matrix-api.js";
-import { OpenDeckHost } from "./opendeck-host.js";
+import { type GlobalSettings, OpenDeckHost } from "./opendeck-host.js";
 
 async function main(): Promise<void> {
 	const config = await loadConfig();
 	const host = new OpenDeckHost();
-	const controller = new MatrixController(host, new MatrixApi(config.matrixUrl, config.requestTimeoutMs), config);
+	const controller = new MatrixController(host, undefined, config);
 
-	host.onEvent((event) => controller.handle(event));
+	host.onEvent(async (event) => {
+		if (event.event === "didReceiveGlobalSettings") {
+			controller.setApi(createApi(event.payload?.settings ?? {}, config.requestTimeoutMs));
+			await controller.refresh();
+			return;
+		}
+		await controller.handle(event);
+	});
 	await host.connect();
+	host.getGlobalSettings();
+}
+
+function createApi(settings: GlobalSettings, requestTimeoutMs: number): MatrixApi | undefined {
+	try {
+		return settings.matrixUrl ? new MatrixApi(settings.matrixUrl, requestTimeoutMs) : undefined;
+	} catch (error) {
+		console.error(error);
+		return undefined;
+	}
 }
 
 void main().catch((error: unknown) => {

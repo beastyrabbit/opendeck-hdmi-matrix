@@ -2,7 +2,6 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 export interface PluginConfig {
-	matrixUrl: string;
 	matrixProfile: string;
 	returnProfile: string;
 	pollIntervalMs: number;
@@ -10,7 +9,6 @@ export interface PluginConfig {
 }
 
 export const DEFAULT_CONFIG: PluginConfig = {
-	matrixUrl: "http://192.168.1.100",
 	matrixProfile: "HDMI Matrix",
 	returnProfile: "Default",
 	pollIntervalMs: 4000,
@@ -21,9 +19,10 @@ export async function loadConfig(configPath = resolve(process.cwd(), "config.jso
 	try {
 		const value = JSON.parse(await readFile(configPath, "utf8")) as Partial<PluginConfig>;
 		return {
-			...DEFAULT_CONFIG,
-			...value,
-			matrixUrl: (value.matrixUrl ?? DEFAULT_CONFIG.matrixUrl).replace(/\/$/, ""),
+			matrixProfile: value.matrixProfile ?? DEFAULT_CONFIG.matrixProfile,
+			returnProfile: value.returnProfile ?? DEFAULT_CONFIG.returnProfile,
+			pollIntervalMs: value.pollIntervalMs ?? DEFAULT_CONFIG.pollIntervalMs,
+			requestTimeoutMs: value.requestTimeoutMs ?? DEFAULT_CONFIG.requestTimeoutMs,
 		};
 	} catch {
 		return DEFAULT_CONFIG;

@@ -1,0 +1,81 @@
+:root {
+	color-scheme: dark;
+	font-family: system-ui, sans-serif;
+	font-size: 14px;
+	color: #f4f4f5;
+	background: #202124;
+}
+
+body {
+	margin: 0;
+}
+
+main {
+	padding: 18px;
+}
+
+h1 {
+	margin: 0 0 6px;
+	font-size: 18px;
+}
+
+.intro,
+.help {
+	color: #b7b9be;
+}
+
+.intro {
+	margin: 0 0 20px;
+}
+
+form {
+	display: grid;
+	gap: 8px;
+}
+
+label {
+	font-weight: 650;
+}
+
+input,
+button {
+	box-sizing: border-box;
+	width: 100%;
+	border: 1px solid #55585f;
+	border-radius: 5px;
+	font: inherit;
+}
+
+input {
+	padding: 9px 10px;
+	color: #fff;
+	background: #2b2d31;
+}
+
+input:focus {
+	border-color: #f59e0b;
+	outline: 2px solid #f59e0b55;
+}
+
+.help {
+	margin: 0 0 6px;
+	font-size: 12px;
+}
+
+button {
+	padding: 9px 12px;
+	font-weight: 700;
+	color: #171717;
+	background: #f59e0b;
+	cursor: pointer;
+}
+
+#status {
+	min-height: 1.4em;
+	margin: 12px 0 0;
+	color: #86efac;
+}
+
+#status[data-error="true"] {
+	color: #fca5a5;
+}

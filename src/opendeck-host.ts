@@ -10,6 +10,10 @@ export interface ActionSettings {
 	role?: string;
 }
 
+export interface GlobalSettings {
+	matrixUrl?: string;
+}
+
 export interface OpenDeckEvent {
 	action?: string;
 	context?: string;
@@ -17,7 +21,7 @@ export interface OpenDeckEvent {
 	event: string;
 	payload?: {
 		coordinates?: Coordinates;
-		settings?: ActionSettings;
+		settings?: ActionSettings & GlobalSettings;
 	};
 }
 
@@ -79,6 +83,10 @@ export class OpenDeckHost {
 	switchProfile(device: string, profile: string): void {
 		// OpenDeck's native profile command intentionally differs from Elgato's bundled-profile command.
 		this.send({ device, event: "switchProfile", profile });
+	}
+
+	getGlobalSettings(): void {
+		this.send({ context: this.registration.pluginUuid, event: "getGlobalSettings" });
 	}
 
 	log(error: unknown): void {

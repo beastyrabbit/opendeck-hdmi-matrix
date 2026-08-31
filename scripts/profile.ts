@@ -66,7 +66,7 @@ function slot(position: number, settings: SlotSettings): object {
 			icon: `plugins/${PLUGIN}/icons/panel.png`,
 			name: "Matrix control panel",
 			plugin: PLUGIN,
-			property_inspector: "",
+			property_inspector: `plugins/${PLUGIN}/property-inspector/index.html`,
 			states: [state],
 			supported_in_multi_actions: false,
 			tooltip: "Dynamic key in the HDMI Matrix profile",

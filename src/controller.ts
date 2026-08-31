@@ -31,9 +31,14 @@ export class MatrixController {
 
 	constructor(
 		private readonly host: OpenDeckHost,
-		private readonly api: MatrixApi,
+		private api: MatrixApi | undefined,
 		private readonly config: PluginConfig,
 	) {}
+
+	setApi(api: MatrixApi | undefined): void {
+		this.api = api;
+		this.snapshot = undefined;
+	}
 
 	async handle(event: OpenDeckEvent): Promise<void> {
 		switch (event.event) {
@@ -79,7 +84,7 @@ export class MatrixController {
 			return;
 		}
 
-		if (event.action !== ACTION_PANEL || !this.snapshot) return;
+		if (event.action !== ACTION_PANEL || !this.snapshot || !this.api) return;
 		const settings = event.payload?.settings ?? this.visible.get(event.context)?.settings ?? {};
 		const index = settings.index;
 		const role = settings.role;
@@ -125,7 +130,7 @@ export class MatrixController {
 	}
 
 	private async routeInput(device: string, index: number | undefined): Promise<boolean> {
-		if (!index || !this.snapshot || !isInputActive(this.snapshot, index)) return false;
+		if (!index || !this.snapshot || !this.api || !isInputActive(this.snapshot, index)) return false;
 		const output = this.getSelectedOutput(device);
 		if (!output) return false;
 		await this.api.route(output, index);
@@ -134,7 +139,7 @@ export class MatrixController {
 	}
 
 	private async toggle(device: string, control: "arc" | "mute" | "stream"): Promise<boolean> {
-		if (!this.snapshot) return false;
+		if (!this.snapshot || !this.api) return false;
 		const output = this.getSelectedOutput(device);
 		if (!output) return false;
 		if (control === "arc") await this.api.setArc(output, this.snapshot.output.allarc[output - 1] !== 1);
@@ -144,6 +149,13 @@ export class MatrixController {
 	}
 
 	private async loadAndRender(): Promise<void> {
+		if (!this.api) {
+			this.snapshot = undefined;
+			for (const action of this.visible.values()) {
+				this.host.setImage(action.context, action.action === ACTION_LAUNCHER ? renderLauncher(false) : renderError());
+			}
+			return;
+		}
 		try {
 			this.snapshot = await this.api.snapshot();
 			for (const action of this.visible.values()) {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { isDailyPreset, isInputActive, isOutputActive, MatrixApi } from "../src/matrix-api.js";
+import { isDailyPreset, isInputActive, isOutputActive, MatrixApi, normalizeMatrixUrl } from "../src/matrix-api.js";
 import { snapshot } from "./fixtures.js";
 
 describe("MatrixApi", () => {
@@ -83,4 +83,9 @@ describe("status helpers", () => {
 		assert.equal(isDailyPreset("Preset3", 3), false);
 		assert.equal(isDailyPreset("setting 4", 4), false);
 	});
+});
+
+it("normalizes a Matrix web-interface URL to its HTTP origin", () => {
+	assert.equal(normalizeMatrixUrl("http://matrix.local/#/status"), "http://matrix.local");
+	assert.throws(() => normalizeMatrixUrl("ftp://matrix.local"), /HTTP or HTTPS/);
 });

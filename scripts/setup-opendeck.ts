@@ -7,6 +7,7 @@ import { createProfile, switchProfileSlot } from "./profile.js";
 const PLUGIN = "de.beasty.hdmi-matrix.sdPlugin";
 const LAUNCHER = "de.beasty.hdmi-matrix.open";
 const SWITCH_ACTION = "com.amansprojects.starterpack.switchprofile";
+const PROPERTY_INSPECTOR = `plugins/${PLUGIN}/property-inspector/index.html`;
 
 interface Profile {
 	infobars: unknown[];
@@ -15,10 +16,12 @@ interface Profile {
 }
 
 const args = process.argv.slice(2);
+if (args.includes("--matrix-url")) {
+	throw new Error("Set the Matrix URL in OpenDeck. The setup script does not accept or store it.");
+}
 const configRoot = option("--config") ?? defaultConfigRoot();
 const matrixProfile = option("--matrix-profile") ?? "HDMI Matrix";
 const returnProfile = option("--return-profile") ?? "Default";
-const matrixUrl = option("--matrix-url")?.replace(/\/$/, "");
 const device = option("--device") ?? (await discoverDevice(configRoot));
 const dryRun = args.includes("--dry-run");
 
@@ -36,25 +39,9 @@ try {
 }
 const pluginSource = await locatePluginSource();
 if (!dryRun) {
-	let existingConfig: Record<string, unknown> | undefined;
-	if (installedPlugin) {
-		try {
-			existingConfig = JSON.parse(await readFile(resolve(pluginPath, "config.json"), "utf8")) as Record<
-				string,
-				unknown
-			>;
-		} catch {
-			// An older installation may not have a config file yet.
-		}
-	}
 	if (resolve(pluginSource) !== resolve(pluginPath)) {
 		await mkdir(resolve(configRoot, "plugins"), { recursive: true });
 		await cp(pluginSource, pluginPath, { force: true, recursive: true });
-	}
-	if (existingConfig || matrixUrl) {
-		const config = existingConfig ?? {};
-		if (matrixUrl) config.matrixUrl = matrixUrl;
-		await writeFile(resolve(pluginPath, "config.json"), `${JSON.stringify(config, null, 2)}\n`);
 	}
 }
 
@@ -75,7 +62,8 @@ if (!createdProfile) {
 	const currentMatrix = JSON.parse(await readFile(matrixPath, "utf8")) as Profile;
 	if (
 		(actionUuid(currentMatrix.keys[16] ?? null) !== SWITCH_ACTION ||
-			profileTarget(currentMatrix.keys[16] ?? null) !== returnProfile) &&
+			profileTarget(currentMatrix.keys[16] ?? null) !== returnProfile ||
+			actionPropertyInspector(currentMatrix.keys[0] ?? null) !== PROPERTY_INSPECTOR) &&
 		!dryRun
 	) {
 		await backup(matrixPath);
@@ -104,7 +92,6 @@ console.log(`${dryRun ? "Would configure" : "Configured"} device ${device}:`);
 console.log(`- plugin: ${installedPlugin ? "updated" : "installed"}`);
 console.log(`- profile: ${matrixProfile}${createdProfile ? " (new)" : " (ready)"}`);
 console.log(`- launcher: ${returnProfile}, key ${launcherPosition + 1}${launcherIsNative ? " (already present)" : ""}`);
-if (matrixUrl) console.log(`- matrix: ${matrixUrl}`);
 console.log("Restart OpenDeck once so it reloads the plugin and profile files.");
 
 function option(name: string): string | undefined {
@@ -172,6 +159,12 @@ function actionUuid(slot: Record<string, unknown> | null): string | undefined {
 
 function profileTarget(slot: Record<string, unknown> | null): string | undefined {
 	return (slot?.settings as Record<string, unknown> | undefined)?.profile as string | undefined;
+}
+
+function actionPropertyInspector(slot: Record<string, unknown> | null): string | undefined {
+	if (!slot) return undefined;
+	const action = slot.action as Record<string, unknown> | undefined;
+	return action?.property_inspector as string | undefined;
 }
 
 async function backup(path: string): Promise<void> {
