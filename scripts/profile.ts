@@ -1,11 +1,24 @@
 const PLUGIN = "de.beasty.hdmi-matrix.sdPlugin";
 const ACTION = "de.beasty.hdmi-matrix.panel";
+const LEGACY_LAUNCHER = "de.beasty.hdmi-matrix.open";
 const SWITCH_PLUGIN = "com.amansprojects.starterpack.sdPlugin";
 const SWITCH_ACTION = "com.amansprojects.starterpack.switchprofile";
+const LAUNCHER_ICON = `plugins/${PLUGIN}/icons/launcher.png`;
+const PROPERTY_INSPECTOR = `plugins/${PLUGIN}/property-inspector/index.html`;
 
 interface SlotSettings {
 	index?: number;
 	role: string;
+}
+
+interface ProfileSlot {
+	action?: { icon?: string; property_inspector?: string; uuid?: string };
+	settings?: { profile?: string };
+}
+
+interface FileIdentity {
+	dev: bigint | number;
+	ino: bigint | number;
 }
 
 export function createProfile(returnProfile = "Default"): object {
@@ -30,6 +43,52 @@ export function launcherSlot(position: number, profile = "HDMI Matrix"): Record<
 	return profileSwitchSlot(position, profile, "launcher", true);
 }
 
+export function isManagedLauncher(value: unknown, matrixProfile: string): boolean {
+	const slot = launcher(value);
+	return (
+		slot?.action?.uuid === LEGACY_LAUNCHER ||
+		slot?.action?.icon === LAUNCHER_ICON ||
+		slot?.action?.property_inspector === PROPERTY_INSPECTOR ||
+		(slot?.action?.uuid === SWITCH_ACTION && slot.settings?.profile === matrixProfile)
+	);
+}
+
+export function isCurrentLauncher(value: unknown, matrixProfile: string): boolean {
+	const slot = launcher(value);
+	return (
+		slot?.action?.uuid === SWITCH_ACTION &&
+		slot.settings?.profile === matrixProfile &&
+		slot.action.property_inspector === PROPERTY_INSPECTOR
+	);
+}
+
+export function isManagedMatrixProfile(value: unknown): boolean {
+	const profile = value as { keys?: unknown[] } | null;
+	const first = profile?.keys?.[0] as { action?: { uuid?: string } } | null;
+	return first?.action?.uuid === ACTION;
+}
+
+export function isSameFile(first: FileIdentity, second: FileIdentity): boolean {
+	return first.dev === second.dev && first.ino === second.ino;
+}
+
+export function migrateSelectedProfile(
+	value: unknown,
+	previousProfile: string,
+	nextProfile: string,
+): Record<string, unknown> | undefined {
+	const config = value as Record<string, unknown>;
+	return config.selected_profile === previousProfile ? { ...config, selected_profile: nextProfile } : undefined;
+}
+
+export function isValidProfileName(profile: string): boolean {
+	return /^[a-zA-Z0-9_ ]+(\/[a-zA-Z0-9_ ]+)?$/.test(profile);
+}
+
+function launcher(value: unknown): ProfileSlot | null {
+	return value as ProfileSlot | null;
+}
+
 function profileSwitchSlot(
 	position: number,
 	profile: string,
@@ -46,7 +105,7 @@ function profileSwitchSlot(
 			icon,
 			name: iconName === "launcher" ? "HDMI Matrix" : "Back",
 			plugin: SWITCH_PLUGIN,
-			property_inspector: showSettings ? `plugins/${PLUGIN}/property-inspector/index.html` : "",
+			property_inspector: showSettings ? PROPERTY_INSPECTOR : "",
 			states: [state],
 			supported_in_multi_actions: true,
 			tooltip: iconName === "launcher" ? "Open the HDMI Matrix controls" : "Return to the main profile",

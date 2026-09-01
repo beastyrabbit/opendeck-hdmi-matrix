@@ -1,13 +1,21 @@
-import { cp, mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { cp, mkdir, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { homedir, platform } from "node:os";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 
-import { createProfile, launcherSlot } from "./profile.js";
+import {
+	createProfile,
+	isCurrentLauncher,
+	isManagedLauncher,
+	isManagedMatrixProfile,
+	isSameFile,
+	isValidProfileName,
+	launcherSlot,
+	migrateSelectedProfile,
+} from "./profile.js";
 
 const PLUGIN = "de.beasty.hdmi-matrix.sdPlugin";
-const LAUNCHER = "de.beasty.hdmi-matrix.open";
 const SWITCH_ACTION = "com.amansprojects.starterpack.switchprofile";
-const PROPERTY_INSPECTOR = `plugins/${PLUGIN}/property-inspector/index.html`;
 
 interface Profile {
 	infobars: unknown[];
@@ -22,6 +30,8 @@ if (args.includes("--matrix-url")) {
 const configRoot = option("--config") ?? defaultConfigRoot();
 const matrixProfile = option("--matrix-profile") ?? "HDMI Matrix";
 const returnProfile = option("--return-profile") ?? "Default";
+if (!isValidProfileName(matrixProfile)) throw new Error(`Unsupported OpenDeck profile name: ${matrixProfile}`);
+if (!isValidProfileName(returnProfile)) throw new Error(`Unsupported OpenDeck profile name: ${returnProfile}`);
 const device = option("--device") ?? (await discoverDevice(configRoot));
 const dryRun = args.includes("--dry-run");
 
@@ -50,14 +60,23 @@ const matrixPath = resolve(profilesPath, `${matrixProfile}.json`);
 const returnPath = resolve(profilesPath, `${returnProfile}.json`);
 if (!dryRun) await mkdir(profilesPath, { recursive: true });
 
+const returnValue = JSON.parse(await readFile(returnPath, "utf8")) as Profile;
+const existing = returnValue.keys.find((key) => isManagedLauncher(key, matrixProfile));
+const previousMatrixProfile = existing ? profileTarget(existing) : undefined;
+if (!dryRun && previousMatrixProfile && previousMatrixProfile !== matrixProfile) {
+	await migrateManagedProfile(previousMatrixProfile, matrixProfile, profilesPath, matrixPath);
+}
+
 let createdProfile = false;
 try {
 	await stat(matrixPath);
 } catch {
 	createdProfile = true;
 }
-if (!dryRun && createdProfile)
+if (!dryRun && createdProfile) {
+	await mkdir(dirname(matrixPath), { recursive: true });
 	await writeFile(matrixPath, `${JSON.stringify(createProfile(returnProfile), null, 2)}\n`);
+}
 if (!createdProfile) {
 	const currentMatrix = JSON.parse(await readFile(matrixPath, "utf8")) as Profile;
 	if (
@@ -71,13 +90,8 @@ if (!createdProfile) {
 	}
 }
 
-const returnValue = JSON.parse(await readFile(returnPath, "utf8")) as Profile;
-const existing = returnValue.keys.find(
-	(key) => actionUuid(key) === LAUNCHER || (actionUuid(key) === SWITCH_ACTION && profileTarget(key) === matrixProfile),
-);
 let launcherPosition = existing ? returnValue.keys.indexOf(existing) : -1;
-const launcherIsCurrent =
-	existing && actionUuid(existing) === SWITCH_ACTION && actionPropertyInspector(existing) === PROPERTY_INSPECTOR;
+const launcherIsCurrent = isCurrentLauncher(existing, matrixProfile);
 
 if (!launcherIsCurrent) {
 	if (!existing) launcherPosition = returnValue.keys.indexOf(null);
@@ -131,6 +145,75 @@ async function locatePluginSource(): Promise<string> {
 		}
 	}
 	throw new Error(`Built plugin not found. Run pnpm build first or pass --plugin-source <path>.`);
+}
+
+async function migrateManagedProfile(
+	previousProfile: string,
+	nextProfile: string,
+	profilesPath: string,
+	nextPath: string,
+): Promise<void> {
+	if (!isValidProfileName(previousProfile)) return;
+	const previousPath = resolve(profilesPath, `${previousProfile}.json`);
+	let previous: Profile;
+	try {
+		previous = JSON.parse(await readFile(previousPath, "utf8")) as Profile;
+	} catch {
+		return;
+	}
+	if (!isManagedMatrixProfile(previous)) return;
+
+	const previousStat = await stat(previousPath);
+	let nextStat: Awaited<ReturnType<typeof stat>> | undefined;
+	try {
+		nextStat = await stat(nextPath);
+	} catch {
+		// The new target does not exist yet.
+	}
+	const sameFile = Boolean(nextStat && isSameFile(previousStat, nextStat));
+	if (nextStat && !sameFile) {
+		const next = JSON.parse(await readFile(nextPath, "utf8")) as Profile;
+		if (!isManagedMatrixProfile(next)) {
+			throw new Error(`Refusing to replace non-managed OpenDeck profile: ${nextProfile}`);
+		}
+	}
+
+	await backup(previousPath);
+	if (sameFile) {
+		const temporaryPath = resolve(dirname(previousPath), `.hdmi-matrix-migration-${randomUUID()}.json`);
+		await rename(previousPath, temporaryPath);
+		try {
+			await rename(temporaryPath, nextPath);
+		} catch (error) {
+			await rename(temporaryPath, previousPath);
+			throw error;
+		}
+	} else if (nextStat) {
+		await unlink(previousPath);
+	} else {
+		await mkdir(dirname(nextPath), { recursive: true });
+		await rename(previousPath, nextPath);
+	}
+	await migrateDeviceSelection(profilesPath, previousProfile, nextProfile);
+	console.log(`- migrated managed profile: ${previousProfile} -> ${nextProfile}`);
+}
+
+async function migrateDeviceSelection(
+	profilesPath: string,
+	previousProfile: string,
+	nextProfile: string,
+): Promise<void> {
+	const deviceConfigPath = `${profilesPath}.json`;
+	let current: unknown;
+	try {
+		current = JSON.parse(await readFile(deviceConfigPath, "utf8"));
+	} catch {
+		return;
+	}
+	const migrated = migrateSelectedProfile(current, previousProfile, nextProfile);
+	if (!migrated) return;
+	await backup(deviceConfigPath);
+	await writeFile(deviceConfigPath, `${JSON.stringify(migrated, null, 2)}\n`);
 }
 
 function defaultConfigRoot(): string {

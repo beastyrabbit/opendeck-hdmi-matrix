@@ -109,6 +109,10 @@ node setup-opendeck.mjs \
   --return-profile "My main profile"
 ```
 
+Profile names may contain letters, numbers, underscores and spaces, with one optional folder separated by `/`. Other characters conflict with OpenDeck's generated action contexts and are rejected by the setup script.
+
+If the Matrix profile name changes on a later setup run, the generated profile is migrated to the new name. The previous managed profile file is backed up first; unrelated user profiles are never migrated.
+
 Quit OpenDeck before running the setup. On Linux, the script refuses to edit profiles while OpenDeck is running. It also backs up an existing profile before replacing an incompatible Matrix layout.
 
 ## Use
