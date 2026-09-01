@@ -1,0 +1,28 @@
+{
+	"$schema": "https://t3.codes/schema/t3.json",
+	"iconPath": "plugin/icons/plugin.svg",
+	"defaultThreadEnvMode": "worktree",
+	"scripts": [
+		{
+			"name": "Worktree einrichten",
+			"command": "pnpm install --frozen-lockfile",
+			"icon": "configure",
+			"runOnWorktreeCreate": true
+		},
+		{
+			"name": "Plugin prüfen",
+			"command": "pnpm verify",
+			"icon": "test"
+		},
+		{
+			"name": "Plugin bauen",
+			"command": "pnpm build",
+			"icon": "build"
+		},
+		{
+			"name": "In OpenDeck deployen",
+			"command": "pnpm deploy",
+			"icon": "play"
+		}
+	]
+}

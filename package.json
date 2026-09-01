@@ -7,7 +7,7 @@
 	"scripts": {
 		"build": "tsx scripts/build.ts",
 		"check": "tsc --noEmit",
-		"deploy:opendeck": "tsx scripts/deploy-opendeck.ts",
+		"deploy": "tsx scripts/deploy-opendeck.ts",
 		"format": "biome format --write .",
 		"lint": "biome check .",
 		"pack": "pnpm build",

@@ -147,7 +147,7 @@ The build writes the plugin bundle, setup script and installable package to `dis
 During development, this command handles the complete local update:
 
 ```bash
-pnpm deploy:opendeck
+pnpm deploy
 ```
 
 It builds the plugin, stops a running OpenDeck process, installs the new build, updates the Matrix profile and starts OpenDeck again with its previous command-line arguments. OpenDeck keeps the Matrix URL in its global plugin settings, outside the plugin directory, so local deployments do not overwrite it. If OpenDeck was already stopped, the command leaves it stopped.
@@ -155,16 +155,22 @@ It builds the plugin, stops a running OpenDeck process, installs the new build, 
 Pass profile setup options after `--`:
 
 ```bash
-pnpm deploy:opendeck -- --matrix-profile "Matrix" --return-profile "Studio"
+pnpm deploy -- --matrix-profile "Matrix" --return-profile "Studio"
 ```
 
 Preview the operation without stopping or changing OpenDeck:
 
 ```bash
-pnpm deploy:opendeck -- --dry-run
+pnpm deploy -- --dry-run
 ```
 
 The dry run still refreshes the local `dist/` build. Automatic process restart is Linux-only. On macOS and Windows, use `pnpm build`, quit OpenDeck and run the bundled setup script manually.
+
+The checked-in `t3.json` exposes setup, verification, build and local deployment in T3 Code's project scripts menu. Its **In OpenDeck deployen** entry runs the same `pnpm deploy` command.
+
+### GitHub release deployment
+
+The **Deploy plugin release** GitHub Action verifies, packages and publishes the installable `.streamDeckPlugin` on a repository-scoped ARC runner. It runs automatically for `v*` tags. It can also be started manually with a new tag such as `v0.1.0`; the tag must not exist yet and must exactly match `Version` in `plugin/manifest.json`.
 
 ## OpenAction Marketplace
 

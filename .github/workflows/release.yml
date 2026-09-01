@@ -1,17 +1,40 @@
-name: Release
+name: Deploy plugin release
 
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag matching the plugin version, for example v0.1.0
+        required: true
+        type: string
 
 permissions:
   contents: write
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
+  deploy:
+    runs-on: arc-opendeck-hdmi-matrix
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Require a new tag for a manual deployment
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          set +e
+          git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null
+          status=$?
+          set -e
+
+          if [[ "$status" -eq 0 ]]; then
+            echo "Release tag $RELEASE_TAG already exists; refusing to publish a different commit under it." >&2
+            exit 1
+          fi
+          if [[ "$status" -ne 2 ]]; then
+            exit "$status"
+          fi
       - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
         with:
           version: 11.3.0
@@ -19,12 +42,17 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-      - run: sudo apt-get update && sudo apt-get install --yes imagemagick
+      - run: sudo apt-get update && sudo apt-get install --yes imagemagick gh jq
       - run: pnpm install --frozen-lockfile
       - run: pnpm verify
-      - name: Check tag matches manifest
-        run: test "${GITHUB_REF_NAME#v}" = "$(jq -r .Version plugin/manifest.json)"
-      - name: Create GitHub release
+      - name: Check release tag matches manifest
+        run: test "$RELEASE_TAG" = "v$(jq -r .Version plugin/manifest.json)"
+      - name: Deploy GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/*.streamDeckPlugin --generate-notes --verify-tag
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            gh release create "$RELEASE_TAG" dist/*.streamDeckPlugin --generate-notes --verify-tag
+          else
+            gh release create "$RELEASE_TAG" dist/*.streamDeckPlugin --generate-notes --target "$GITHUB_SHA"
+          fi
