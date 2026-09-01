@@ -4,14 +4,16 @@ let context = "";
 function connectElgatoStreamDeckSocket(port, propertyInspectorUuid, registerEvent, info, actionInfo) {
 	void info;
 	const action = JSON.parse(actionInfo);
-	context = action.context || propertyInspectorUuid;
+	const device = action.device;
+	const profile = action.payload?.settings?.profile;
+	context = device && profile ? `${device}.${profile}.Keypad.0.0` : action.context || propertyInspectorUuid;
 
 	const form = document.getElementById("settings-form");
 	form.addEventListener("submit", saveSettings);
 
 	socket = new WebSocket(`ws://localhost:${port}`);
 	socket.addEventListener("open", () => {
-		socket.send(JSON.stringify({ event: registerEvent, uuid: propertyInspectorUuid }));
+		socket.send(JSON.stringify({ event: registerEvent, uuid: context }));
 		socket.send(JSON.stringify({ context, event: "getGlobalSettings" }));
 	});
 	socket.addEventListener("message", receiveMessage);

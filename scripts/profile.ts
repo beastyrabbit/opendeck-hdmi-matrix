@@ -16,7 +16,7 @@ export function createProfile(returnProfile = "Default"): object {
 		keys[24 + index - 1] = slot(24 + index - 1, { index, role: "input" });
 	}
 
-	keys[16] = switchProfileSlot(16, returnProfile, "back");
+	keys[16] = profileSwitchSlot(16, returnProfile, "back", false);
 	keys[17] = slot(17, { role: "selection" });
 	keys[18] = slot(18, { role: "arc" });
 	keys[19] = slot(19, { role: "mute" });
@@ -26,27 +26,32 @@ export function createProfile(returnProfile = "Default"): object {
 	return { infobars: [], keys, sliders: [] };
 }
 
-export function switchProfileSlot(
+export function launcherSlot(position: number, profile = "HDMI Matrix"): Record<string, unknown> {
+	return profileSwitchSlot(position, profile, "launcher", true);
+}
+
+function profileSwitchSlot(
 	position: number,
 	profile: string,
-	icon: "back" | "launcher",
+	iconName: "back" | "launcher",
+	showSettings: boolean,
 ): Record<string, unknown> {
-	const image = `plugins/${PLUGIN}/icons/${icon}.png`;
-	const state = actionState(image);
+	const icon = `plugins/${PLUGIN}/icons/${iconName}.png`;
+	const state = actionState(icon);
 	return {
 		action: {
 			controllers: ["Keypad", "Encoder"],
 			disable_automatic_states: false,
 			encoder: null,
-			icon: image,
-			name: "Switch Profile",
+			icon,
+			name: iconName === "launcher" ? "HDMI Matrix" : "Back",
 			plugin: SWITCH_PLUGIN,
-			property_inspector: `plugins/${SWITCH_PLUGIN}/propertyInspector/switchProfile.html`,
+			property_inspector: showSettings ? `plugins/${PLUGIN}/property-inspector/index.html` : "",
 			states: [state],
 			supported_in_multi_actions: true,
-			tooltip: "Switch the selected profile",
+			tooltip: iconName === "launcher" ? "Open the HDMI Matrix controls" : "Return to the main profile",
 			uuid: SWITCH_ACTION,
-			visible_in_action_list: true,
+			visible_in_action_list: false,
 		},
 		children: null,
 		context: `Keypad.${position}.0`,
@@ -66,7 +71,7 @@ function slot(position: number, settings: SlotSettings): object {
 			icon: `plugins/${PLUGIN}/icons/panel.png`,
 			name: "Matrix control panel",
 			plugin: PLUGIN,
-			property_inspector: `plugins/${PLUGIN}/property-inspector/index.html`,
+			property_inspector: "",
 			states: [state],
 			supported_in_multi_actions: false,
 			tooltip: "Dynamic key in the HDMI Matrix profile",

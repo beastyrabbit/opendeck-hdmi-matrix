@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { it } from "node:test";
 
-import { createProfile } from "../scripts/profile.js";
+import { createProfile, launcherSlot } from "../scripts/profile.js";
 
 it("creates the requested four-row Stream Deck XL layout", () => {
 	const profile = createProfile() as {
@@ -25,11 +25,22 @@ it("creates the requested four-row Stream Deck XL layout", () => {
 	);
 	assert.equal(profile.keys[16]?.action?.uuid, "com.amansprojects.starterpack.switchprofile");
 	assert.equal(profile.keys[16]?.settings?.profile, "Default");
+	assert.equal(profile.keys[16]?.action?.property_inspector, "");
 	assert.equal(profile.keys[18]?.settings?.role, "arc");
 	assert.equal(profile.keys[19]?.settings?.role, "mute");
 	assert.equal(profile.keys[20]?.settings?.role, "stream");
+	assert.equal(profile.keys[0]?.action?.property_inspector, "");
+});
+
+it("creates a user-facing launcher with hidden profile routing", () => {
+	const launcher = launcherSlot(3, "Studio Matrix") as {
+		action: { property_inspector: string; uuid: string };
+		settings: { profile: string };
+	};
+	assert.equal(launcher.action.uuid, "com.amansprojects.starterpack.switchprofile");
 	assert.equal(
-		profile.keys[0]?.action?.property_inspector,
+		launcher.action.property_inspector,
 		"plugins/de.beasty.hdmi-matrix.sdPlugin/property-inspector/index.html",
 	);
+	assert.equal(launcher.settings.profile, "Studio Matrix");
 });

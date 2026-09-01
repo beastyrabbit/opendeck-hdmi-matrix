@@ -38,7 +38,6 @@
 			"VisibleInActionsList": false,
 			"SupportedInMultiActions": false,
 			"DisableAutomaticStates": true,
-			"PropertyInspectorPath": "property-inspector/index.html",
 			"States": [
 				{
 					"Image": "icons/panel",

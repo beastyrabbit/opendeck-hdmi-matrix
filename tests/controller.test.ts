@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { it } from "node:test";
 
 import { DEFAULT_CONFIG } from "../src/config.js";
-import { ACTION_LAUNCHER, ACTION_PANEL, MatrixController } from "../src/controller.js";
+import { ACTION_PANEL, MatrixController } from "../src/controller.js";
 import type { MatrixApi } from "../src/matrix-api.js";
 import type { OpenDeckHost } from "../src/opendeck-host.js";
 import { snapshot } from "./fixtures.js";
@@ -48,8 +48,7 @@ function event(type: string, context: string, settings: { index?: number; role?:
 	};
 }
 
-it("opens the Matrix profile and uses Stream off as disconnect", async () => {
-	const profiles: string[] = [];
+it("uses Stream off as disconnect", async () => {
 	const streams: Array<[number, boolean]> = [];
 	const api = {
 		recallPreset: async () => {},
@@ -64,16 +63,13 @@ it("opens the Matrix profile and uses Stream off as disconnect", async () => {
 		setImage: () => {},
 		showAlert: () => {},
 		showOk: () => {},
-		switchProfile: (_device: string, profile: string) => profiles.push(profile),
 	};
 	const controller = new MatrixController(host as unknown as OpenDeckHost, api as unknown as MatrixApi, DEFAULT_CONFIG);
 
-	await controller.handle({ action: ACTION_LAUNCHER, context: "open", device: "deck-xl", event: "keyUp" });
 	await controller.handle(event("willAppear", "stream", { role: "stream" }));
 	await controller.handle(event("keyUp", "stream", { role: "stream" }));
 	await controller.handle(event("willDisappear", "stream", {}));
 
-	assert.deepEqual(profiles, ["HDMI Matrix"]);
 	assert.deepEqual(streams, [[1, false]]);
 });
 

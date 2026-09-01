@@ -62,7 +62,7 @@ The bundled profile assumes 32 keys. Smaller decks and 4 by 4 matrices have not 
 
 Requirements:
 
-- OpenDeck with the bundled Starter Pack plugin
+- OpenDeck
 - Node.js 20 or newer for the one-time profile setup
 - The matrix and computer on the same local network
 
@@ -89,10 +89,10 @@ Windows PowerShell:
 node "$env:APPDATA\opendeck\plugins\de.beasty.hdmi-matrix.sdPlugin\setup-opendeck.mjs"
 ```
 
-5. Start OpenDeck. The setup creates the `HDMI Matrix` profile and adds a launcher to the first free key in `Default`.
-6. In OpenDeck, open the `HDMI Matrix` profile and select any Matrix key. Enter the address of the web interface under `Matrix URL` in the settings panel, then press `Save connection`.
+5. Start OpenDeck. The setup creates the managed Matrix control profile and adds the HDMI Matrix launcher to the first free key in `Default`.
+6. Select the launcher in OpenDeck. Enter the address of the web interface under `Matrix URL`, then press `Save connection`.
 
-OpenDeck stores the address as a global plugin setting. Every Matrix key uses it, so you only set it once. The build and setup scripts never contain or write the address.
+The launcher is the only button users configure. OpenDeck stores its address as a global plugin setting, so the managed control buttons need no setup. The build and setup scripts never contain or write the address.
 
 For a Flatpak installation, pass its configuration directory explicitly:
 
@@ -113,19 +113,19 @@ Quit OpenDeck before running the setup. On Linux, the script refuses to edit pro
 
 ## Use
 
-Press the launcher in the main profile. In the Matrix profile, select an output in the top row and an input in the bottom row. The route changes immediately.
+Press the launcher on the physical Stream Deck. In OpenDeck's editor, double-click the launcher to simulate a physical press; a single click only opens its settings. In the Matrix profile, select an output in the top row and an input in the bottom row. The route changes immediately.
 
 ARC, mute and stream always control the amber selected output. Turning stream off disables that HDMI output while retaining its last input mapping. Turning it on restores the output with the same mapping.
 
 ## How it works
 
-The setup script writes a 32-key OpenDeck profile and places a native profile-switch button in the main profile. The launcher and back buttons use OpenDeck's Starter Pack. The remaining keys belong to this plugin.
+The setup script writes a managed 32-key OpenDeck profile and places one HDMI Matrix launcher in the main profile. The launcher holds the connection settings and opens the controls. The launcher and back key use OpenDeck's bundled profile-switch action because OpenDeck only permits that built-in action to change profiles. Their targets and all internal Matrix buttons are generated automatically; users configure only the launcher's Matrix URL.
 
 When the Matrix profile becomes visible, the plugin reads three status records from `POST /cgi-bin/instr`: inputs, outputs and video routing. It uses those records to draw every key. Disconnected outputs, inputs without a signal and factory-named presets render as blank keys. The plugin repeats the status read every four seconds and after each button press.
 
 Output selection is local to each Stream Deck. Pressing an active output marks it amber without changing a route. Pressing an input then sends `video switch` with the selected output and input port. Presets send `preset set`. ARC, mute and stream read the current value first and send the inverse value for the selected output.
 
-The Matrix URL comes only from OpenDeck's global plugin settings. The property inspector saves it through the OpenAction `setGlobalSettings` event. The plugin receives the setting, creates the local HTTP client and refreshes the visible keys. No cloud service or external server takes part.
+The Matrix URL comes only from the launcher's OpenDeck settings panel. The property inspector saves it through the OpenAction `setGlobalSettings` event. The plugin receives the setting, creates the local HTTP client and refreshes the visible keys. No cloud service or external server takes part.
 
 The matrix accepts one command at a time, so the plugin serializes all HTTP requests. A request times out after three seconds. Invalid JSON is retried twice because this firmware occasionally returns an incomplete response.
 

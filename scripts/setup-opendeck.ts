@@ -2,7 +2,7 @@ import { cp, mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises"
 import { homedir, platform } from "node:os";
 import { resolve } from "node:path";
 
-import { createProfile, switchProfileSlot } from "./profile.js";
+import { createProfile, launcherSlot } from "./profile.js";
 
 const PLUGIN = "de.beasty.hdmi-matrix.sdPlugin";
 const LAUNCHER = "de.beasty.hdmi-matrix.open";
@@ -63,7 +63,7 @@ if (!createdProfile) {
 	if (
 		(actionUuid(currentMatrix.keys[16] ?? null) !== SWITCH_ACTION ||
 			profileTarget(currentMatrix.keys[16] ?? null) !== returnProfile ||
-			actionPropertyInspector(currentMatrix.keys[0] ?? null) !== PROPERTY_INSPECTOR) &&
+			actionPropertyInspector(currentMatrix.keys[0] ?? null) !== "") &&
 		!dryRun
 	) {
 		await backup(matrixPath);
@@ -76,12 +76,13 @@ const existing = returnValue.keys.find(
 	(key) => actionUuid(key) === LAUNCHER || (actionUuid(key) === SWITCH_ACTION && profileTarget(key) === matrixProfile),
 );
 let launcherPosition = existing ? returnValue.keys.indexOf(existing) : -1;
-const launcherIsNative = existing && actionUuid(existing) === SWITCH_ACTION;
+const launcherIsCurrent =
+	existing && actionUuid(existing) === SWITCH_ACTION && actionPropertyInspector(existing) === PROPERTY_INSPECTOR;
 
-if (!launcherIsNative) {
+if (!launcherIsCurrent) {
 	if (!existing) launcherPosition = returnValue.keys.indexOf(null);
 	if (launcherPosition < 0) throw new Error(`${returnProfile} has no free key for the Matrix launcher.`);
-	returnValue.keys[launcherPosition] = switchProfileSlot(launcherPosition, matrixProfile, "launcher");
+	returnValue.keys[launcherPosition] = launcherSlot(launcherPosition, matrixProfile);
 	if (!dryRun) {
 		await backup(returnPath);
 		await writeFile(returnPath, `${JSON.stringify(returnValue, null, 2)}\n`);
@@ -91,7 +92,9 @@ if (!launcherIsNative) {
 console.log(`${dryRun ? "Would configure" : "Configured"} device ${device}:`);
 console.log(`- plugin: ${installedPlugin ? "updated" : "installed"}`);
 console.log(`- profile: ${matrixProfile}${createdProfile ? " (new)" : " (ready)"}`);
-console.log(`- launcher: ${returnProfile}, key ${launcherPosition + 1}${launcherIsNative ? " (already present)" : ""}`);
+console.log(
+	`- launcher: ${returnProfile}, key ${launcherPosition + 1}${launcherIsCurrent ? " (already present)" : ""}`,
+);
 console.log("Restart OpenDeck once so it reloads the plugin and profile files.");
 
 function option(name: string): string | undefined {

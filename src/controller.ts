@@ -6,13 +6,11 @@ import {
 	renderControl,
 	renderError,
 	renderInput,
-	renderLauncher,
 	renderOutput,
 	renderPreset,
 	renderSelection,
 } from "./render.js";
 
-export const ACTION_LAUNCHER = "de.beasty.hdmi-matrix.open";
 export const ACTION_PANEL = "de.beasty.hdmi-matrix.panel";
 
 interface VisibleAction {
@@ -79,11 +77,6 @@ export class MatrixController {
 
 	private async press(event: OpenDeckEvent): Promise<void> {
 		if (!event.context || !event.device || !event.action) return;
-		if (event.action === ACTION_LAUNCHER) {
-			this.host.switchProfile(event.device, this.config.matrixProfile);
-			return;
-		}
-
 		if (event.action !== ACTION_PANEL || !this.snapshot || !this.api) return;
 		const settings = event.payload?.settings ?? this.visible.get(event.context)?.settings ?? {};
 		const index = settings.index;
@@ -114,9 +107,6 @@ export class MatrixController {
 					break;
 				case "refresh":
 					break;
-				case "back":
-					this.host.switchProfile(event.device, this.config.returnProfile);
-					return;
 				default:
 					completed = false;
 			}
@@ -152,7 +142,7 @@ export class MatrixController {
 		if (!this.api) {
 			this.snapshot = undefined;
 			for (const action of this.visible.values()) {
-				this.host.setImage(action.context, action.action === ACTION_LAUNCHER ? renderLauncher(false) : renderError());
+				this.host.setImage(action.context, renderError());
 			}
 			return;
 		}
@@ -175,7 +165,7 @@ export class MatrixController {
 		} catch (error) {
 			this.host.log(error);
 			for (const action of this.visible.values()) {
-				this.host.setImage(action.context, action.action === ACTION_LAUNCHER ? renderLauncher(false) : renderError());
+				this.host.setImage(action.context, renderError());
 			}
 		}
 	}
@@ -188,7 +178,6 @@ export class MatrixController {
 	}
 
 	private renderAction(action: VisibleAction): string {
-		if (action.action === ACTION_LAUNCHER) return renderLauncher(true);
 		if (!this.snapshot) return renderError();
 		const index = action.settings.index ?? 0;
 		const role = action.settings.role;
@@ -227,8 +216,6 @@ export class MatrixController {
 					: renderBlank();
 			case "refresh":
 				return renderControl("refresh", true, selected ?? 1);
-			case "back":
-				return renderControl("back", false, selected ?? 1);
 			default:
 				return renderBlank();
 		}
