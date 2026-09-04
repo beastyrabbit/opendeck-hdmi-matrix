@@ -54,23 +54,23 @@ export class MatrixApi {
 	}
 
 	async route(output: number, input: number): Promise<void> {
-		await this.command("video switch", { source: [port(output), port(input)] }, parseObjectResponse);
+		await this.command("video switch", { source: [port(output), port(input)] }, parseCommandAcknowledgement);
 	}
 
 	async recallPreset(index: number): Promise<void> {
-		await this.command("preset set", { index: port(index) }, parseObjectResponse);
+		await this.command("preset set", { index: port(index) }, parseCommandAcknowledgement);
 	}
 
 	async setArc(output: number, enabled: boolean): Promise<void> {
-		await this.command("set arc", { arc: [port(output), Number(enabled)] }, parseObjectResponse);
+		await this.command("set arc", { arc: [port(output), Number(enabled)] }, parseCommandAcknowledgement);
 	}
 
 	async setMute(output: number, enabled: boolean): Promise<void> {
-		await this.command("set output audio mute", { mute: [port(output), Number(enabled)] }, parseObjectResponse);
+		await this.command("set output audio mute", { mute: [port(output), Number(enabled)] }, parseCommandAcknowledgement);
 	}
 
 	async setStream(output: number, enabled: boolean): Promise<void> {
-		await this.command("tx stream", { out: [port(output), Number(enabled)] }, parseObjectResponse);
+		await this.command("tx stream", { out: [port(output), Number(enabled)] }, parseCommandAcknowledgement);
 	}
 
 	private command<T>(comhead: string, fields: Record<string, unknown>, parse: (value: unknown) => T): Promise<T> {
@@ -173,8 +173,9 @@ function parseVideoStatus(value: unknown): VideoStatus {
 	};
 }
 
-function parseObjectResponse(value: unknown): Record<string, unknown> {
-	return objectValue(value);
+function parseCommandAcknowledgement(value: unknown): void {
+	const response = objectValue(value);
+	if (response.result !== 1) throw new Error("Matrix did not acknowledge the command");
 }
 
 function objectValue(value: unknown): Record<string, unknown> {
