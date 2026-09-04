@@ -11,7 +11,7 @@ import {
 	renderSelection,
 } from "./render.js";
 
-export const ACTION_PANEL = "de.beasty.hdmi-matrix.panel";
+export const ACTION_PANEL = "com.beastyrabbit.hdmi-matrix.panel";
 
 interface VisibleAction {
 	action: string;
@@ -26,6 +26,10 @@ export class MatrixController {
 	private snapshot?: MatrixSnapshot;
 	private pollTimer?: NodeJS.Timeout;
 	private loading?: Promise<void>;
+	private loadingGeneration?: number;
+	private refreshRequested = false;
+	private apiGeneration = 0;
+	private disposed = false;
 
 	constructor(
 		private readonly host: OpenDeckHost,
@@ -36,6 +40,16 @@ export class MatrixController {
 	setApi(api: MatrixApi | undefined): void {
 		this.api = api;
 		this.snapshot = undefined;
+		this.apiGeneration += 1;
+	}
+
+	dispose(): void {
+		this.disposed = true;
+		this.api = undefined;
+		this.snapshot = undefined;
+		this.apiGeneration += 1;
+		this.refreshRequested = false;
+		this.stopPolling();
 	}
 
 	async handle(event: OpenDeckEvent): Promise<void> {
@@ -56,12 +70,26 @@ export class MatrixController {
 	}
 
 	async refresh(): Promise<void> {
-		if (this.loading) return this.loading;
-		this.loading = this.loadAndRender();
+		if (this.disposed) return;
+		if (this.loading) {
+			if (this.loadingGeneration !== this.apiGeneration) this.refreshRequested = true;
+			return this.loading;
+		}
+		this.refreshRequested = true;
+		this.loading = this.runRefreshLoop();
 		try {
 			await this.loading;
 		} finally {
 			this.loading = undefined;
+			this.loadingGeneration = undefined;
+		}
+	}
+
+	private async runRefreshLoop(): Promise<void> {
+		while (this.refreshRequested && !this.disposed) {
+			this.refreshRequested = false;
+			this.loadingGeneration = this.apiGeneration;
+			await this.loadAndRender(this.api, this.loadingGeneration);
 		}
 	}
 
@@ -138,8 +166,9 @@ export class MatrixController {
 		return true;
 	}
 
-	private async loadAndRender(): Promise<void> {
-		if (!this.api) {
+	private async loadAndRender(api: MatrixApi | undefined, generation: number): Promise<void> {
+		if (!api) {
+			if (generation !== this.apiGeneration || this.disposed) return;
 			this.snapshot = undefined;
 			for (const action of this.visible.values()) {
 				this.host.setImage(action.context, renderError());
@@ -147,7 +176,9 @@ export class MatrixController {
 			return;
 		}
 		try {
-			this.snapshot = await this.api.snapshot();
+			const snapshot = await api.snapshot();
+			if (generation !== this.apiGeneration || this.disposed) return;
+			this.snapshot = snapshot;
 			for (const action of this.visible.values()) {
 				if (!this.selectedOutput.has(action.device)) {
 					const first = Array.from({ length: 8 }, (_, position) => position + 1).find((index) =>
@@ -163,6 +194,7 @@ export class MatrixController {
 			}
 			await this.renderAll();
 		} catch (error) {
+			if (generation !== this.apiGeneration || this.disposed) return;
 			this.host.log(error);
 			for (const action of this.visible.values()) {
 				this.host.setImage(action.context, renderError());
@@ -227,7 +259,7 @@ export class MatrixController {
 	}
 
 	private startPolling(): void {
-		if (this.pollTimer) return;
+		if (this.pollTimer || this.disposed) return;
 		this.pollTimer = setInterval(() => void this.refresh(), this.config.pollIntervalMs);
 		this.pollTimer.unref();
 	}
