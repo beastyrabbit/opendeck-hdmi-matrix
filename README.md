@@ -33,7 +33,7 @@ Inputs
 | Rebranded 8 by 8 matrices with the same HDCVT web firmware | May work, not tested |
 | Other HDMI matrices | Not supported unless they implement the same HTTP API |
 
-Development and daily use were tested with matrix firmware `V1.00.19`, web firmware `V2.00.22` and OpenDeck `2.14.0`.
+Development and daily use were tested on Linux with matrix firmware `V1.00.19`, web firmware `V2.00.22`, OpenDeck `2.14.0` and a physical Stream Deck XL.
 
 The model name alone is not enough for an untested device. This plugin expects `POST /cgi-bin/instr` and these JSON commands:
 
@@ -63,10 +63,11 @@ The bundled profile assumes 32 keys. Smaller decks and 4 by 4 matrices have not 
 Requirements:
 
 - OpenDeck
-- Node.js 20 or newer for the one-time profile setup
+- Node.js 20 or newer while the plugin is running and for profile setup
+- OpenDeck's bundled Starter Pack plugin, which provides profile switching
 - The matrix and computer on the same local network
 
-1. Download `de.beasty.hdmi-matrix.streamDeckPlugin` from the [latest GitHub release](https://github.com/beastyrabbit/opendeck-hdmi-matrix/releases/latest).
+1. Download `com.beastyrabbit.hdmi-matrix.streamDeckPlugin` from the [latest GitHub release](https://github.com/beastyrabbit/opendeck-hdmi-matrix/releases/latest).
 2. Install it from OpenDeck's plugin manager.
 3. Quit OpenDeck completely.
 4. Run the setup command for your platform.
@@ -74,19 +75,21 @@ Requirements:
 Linux:
 
 ```bash
-node ~/.config/opendeck/plugins/de.beasty.hdmi-matrix.sdPlugin/setup-opendeck.mjs
+node ~/.config/opendeck/plugins/com.beastyrabbit.hdmi-matrix.sdPlugin/setup-opendeck.mjs
 ```
 
 macOS:
 
 ```bash
-node "$HOME/Library/Application Support/opendeck/plugins/de.beasty.hdmi-matrix.sdPlugin/setup-opendeck.mjs"
+node "$HOME/Library/Application Support/opendeck/plugins/com.beastyrabbit.hdmi-matrix.sdPlugin/setup-opendeck.mjs" \
+  --confirm-opendeck-closed
 ```
 
 Windows PowerShell:
 
 ```powershell
-node "$env:APPDATA\opendeck\plugins\de.beasty.hdmi-matrix.sdPlugin\setup-opendeck.mjs"
+node "$env:APPDATA\opendeck\plugins\com.beastyrabbit.hdmi-matrix.sdPlugin\setup-opendeck.mjs" `
+  --confirm-opendeck-closed
 ```
 
 5. Start OpenDeck. The setup creates the managed Matrix control profile and adds the HDMI Matrix launcher to the first free key in `Default`.
@@ -94,12 +97,16 @@ node "$env:APPDATA\opendeck\plugins\de.beasty.hdmi-matrix.sdPlugin\setup-opendec
 
 The launcher is the only button users configure. OpenDeck stores its address as a global plugin setting, so the managed control buttons need no setup. The build and setup scripts never contain or write the address.
 
+OpenDeck installs the plugin archive but cannot create this plugin's managed 32-key profile. The terminal setup in step 4 is therefore required once after installation. Running it again updates the managed plugin files and profile. It refuses to replace profiles or launchers it cannot identify as belonging to this plugin.
+
 For a Flatpak installation, pass its configuration directory explicitly:
 
 ```bash
-node ~/.var/app/me.amankhanna.opendeck/config/opendeck/plugins/de.beasty.hdmi-matrix.sdPlugin/setup-opendeck.mjs \
+node ~/.var/app/me.amankhanna.opendeck/config/opendeck/plugins/com.beastyrabbit.hdmi-matrix.sdPlugin/setup-opendeck.mjs \
   --config ~/.var/app/me.amankhanna.opendeck/config/opendeck
 ```
+
+The Flatpak path is provided for testing and is not part of the end-to-end support claim yet. The sandbox must be able to run Node.js and reach the matrix on the local network.
 
 Custom profile names are supported:
 
@@ -113,7 +120,18 @@ Profile names may contain letters, numbers, underscores and spaces, with one opt
 
 If the Matrix profile name changes on a later setup run, the generated profile is migrated to the new name. The previous managed profile file is backed up first; unrelated user profiles are never migrated.
 
-Quit OpenDeck before running the setup. On Linux, the script refuses to edit profiles while OpenDeck is running. It also backs up an existing profile before replacing an incompatible Matrix layout.
+Quit OpenDeck before running the setup. It checks for a running OpenDeck process before changing plugin or profile files. It also keeps timestamped backups when it updates managed profile data. If setup reports an interrupted write, leave OpenDeck closed and restore the newest `.backup-*` file before trying again.
+
+Pre-release builds used the old `de.beasty.hdmi-matrix` bundle ID. The setup script recognizes their managed profiles, but it does not delete the old plugin directory. Testers who installed one should remove that old entry after the new plugin works.
+
+### Platform status
+
+| Platform | Current coverage |
+| --- | --- |
+| Linux | OpenDeck, setup, Property Inspector and physical Stream Deck XL tested end to end |
+| Windows | Automated tests and build only; OpenDeck installation and physical keys not yet tested |
+| macOS | Automated tests and build only; OpenDeck installation and physical keys not yet tested |
+| Flatpak | Explicit config path documented; sandbox behavior not yet tested end to end |
 
 ## Use
 
@@ -130,6 +148,8 @@ When the Matrix profile becomes visible, the plugin reads three status records f
 Output selection is local to each Stream Deck. Pressing an active output marks it amber without changing a route. Pressing an input then sends `video switch` with the selected output and input port. Presets send `preset set`. ARC, mute and stream read the current value first and send the inverse value for the selected output.
 
 The Matrix URL comes only from the launcher's OpenDeck settings panel. The property inspector saves it through the OpenAction `setGlobalSettings` event. The plugin receives the setting, creates the local HTTP client and refreshes the visible keys. No cloud service or external server takes part.
+
+The tested matrix exposes an unauthenticated HTTP control API. Keep it on a trusted local network and do not expose it to the internet. Anyone who can reach that API can change routes and output state.
 
 The matrix accepts one command at a time, so the plugin serializes all HTTP requests. A request times out after three seconds. Invalid JSON is retried twice because this firmware occasionally returns an incomplete response.
 
@@ -170,7 +190,7 @@ The checked-in `t3.json` exposes setup, verification, build and local deployment
 
 ### GitHub release deployment
 
-The **Deploy plugin release** GitHub Action verifies, packages and publishes the installable `.streamDeckPlugin` on a repository-scoped ARC runner. It runs automatically for `v*` tags. It can also be started manually with a new tag such as `v0.1.0`; the tag must not exist yet and must exactly match `Version` in `plugin/manifest.json`.
+The release workflow checks the tag against `plugin/manifest.json`, verifies the package and publishes the installable `.streamDeckPlugin` together with checksums. See the workflow file for the exact release gate.
 
 ## OpenAction Marketplace
 
@@ -178,11 +198,17 @@ The OpenDeck plugin store reads the [OpenAction plugin registry](https://github.
 
 1. A public GitHub repository with the `openaction` topic
 2. A GitHub release containing one `.streamDeckPlugin` asset
-3. An entry for `de.beasty.hdmi-matrix` in the registry's `catalogue.json`
-4. A matching high-resolution icon named `de.beasty.hdmi-matrix.png`
+3. An entry for `com.beastyrabbit.hdmi-matrix` in the registry's `catalogue.json`
+4. A matching high-resolution icon named `com.beastyrabbit.hdmi-matrix.png`
 5. A pull request to the registry repository
 
-The catalogue `name` and `author` must exactly match `plugin/manifest.json`. OpenDeck then finds the newest non-prerelease GitHub release and installs its `.streamDeckPlugin` asset.
+The catalogue `name` and `author` must exactly match `plugin/manifest.json`. OpenDeck then finds the newest non-prerelease GitHub release and installs its `.streamDeckPlugin` asset. The registry also accepts an issue containing the public repository URL if a focused catalogue pull request is not practical.
+
+## Known limitations
+
+- The managed profile needs a 32-key Stream Deck XL.
+- The profile stays open until the Back key is pressed. Automatic return after inactivity is tracked in [issue #1](https://github.com/beastyrabbit/opendeck-hdmi-matrix/issues/1) for a later release.
+- Marketplace installation still requires the one-time terminal setup described above.
 
 ## License
 

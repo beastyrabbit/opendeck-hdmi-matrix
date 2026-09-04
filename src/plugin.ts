@@ -16,8 +16,13 @@ async function main(): Promise<void> {
 		}
 		await controller.handle(event);
 	});
-	await host.connect();
-	host.getGlobalSettings();
+	try {
+		await host.connect();
+		host.getGlobalSettings();
+		await host.waitUntilClosed();
+	} finally {
+		controller.dispose();
+	}
 }
 
 function createApi(settings: GlobalSettings, requestTimeoutMs: number): MatrixApi | undefined {

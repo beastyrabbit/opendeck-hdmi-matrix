@@ -4,22 +4,93 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  verify:
-    runs-on: arc-opendeck-hdmi-matrix
+  secrets:
+    name: Secret scan (complete history)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+      - name: Check out complete history
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install pinned Gitleaks
+        run: .github/scripts/install-gitleaks.sh
+      - name: Scan complete Git history
+        run: gitleaks git --redact --verbose --timeout 120 .
+
+  verify:
+    name: Node 20 / ${{ matrix.os }}
+    needs: secrets
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Install pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: 11.3.0
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - name: Install Node.js 20
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 24
+          node-version: 20
           cache: pnpm
-      - run: sudo apt-get update && sudo apt-get install --yes imagemagick
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm verify
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Audit dependencies
+        if: runner.os == 'Linux'
+        run: pnpm audit --audit-level high
+      - name: Verify source and package
+        run: pnpm verify
+      - name: Upload package for cross-platform comparison
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: package-${{ runner.os }}
+          path: dist/com.beastyrabbit.hdmi-matrix.streamDeckPlugin
+          if-no-files-found: error
+          retention-days: 7
+
+  reproducible:
+    name: Reproducible across operating systems
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Download platform packages
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          pattern: package-*
+          path: packages
+      - name: Compare package bytes
+        shell: bash
+        run: |
+          mapfile -t packages < <(find packages -type f -name '*.streamDeckPlugin' -print | sort)
+          if [[ "${#packages[@]}" -ne 3 ]]; then
+            echo "Expected packages from three operating systems, found ${#packages[@]}" >&2
+            exit 1
+          fi
+
+          sha256sum "${packages[@]}"
+          for package in "${packages[@]:1}"; do
+            cmp --silent "${packages[0]}" "$package" || {
+              echo "Package differs across operating systems: $package" >&2
+              exit 1
+            }
+          done
