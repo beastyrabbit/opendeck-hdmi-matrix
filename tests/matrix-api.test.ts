@@ -95,10 +95,21 @@ describe("MatrixApi", () => {
 		assert.equal(calls, 3);
 	});
 
-	it("requires command responses to be JSON objects", async () => {
+	it("requires an affirmative command acknowledgement", async () => {
 		const api = new MatrixApi("http://matrix", 1000, (async () => new Response("null")) as typeof fetch);
 
 		await assert.rejects(() => api.route(1, 1), /invalid response for video switch/);
+	});
+
+	it("rejects a negative command acknowledgement", async () => {
+		let calls = 0;
+		const api = new MatrixApi("http://matrix", 1000, (async () => {
+			calls += 1;
+			return new Response(JSON.stringify({ result: 0 }));
+		}) as typeof fetch);
+
+		await assert.rejects(() => api.route(1, 1), /invalid response for video switch/);
+		assert.equal(calls, 3);
 	});
 });
 

@@ -190,7 +190,7 @@ The checked-in `t3.json` exposes setup, verification, build and local deployment
 
 ### GitHub release deployment
 
-The release workflow checks the tag against `plugin/manifest.json`, verifies the package and publishes the installable `.streamDeckPlugin` together with checksums. See the workflow file for the exact release gate.
+The **Deploy plugin release** workflow verifies, packages and publishes the installable `.streamDeckPlugin`. It runs for `v*` tags and can also be started manually with a new `vMAJOR.MINOR.PATCH` tag that matches `plugin/manifest.json`.
 
 ## OpenAction Marketplace
 
