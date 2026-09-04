@@ -1,58 +1,180 @@
-name: Deploy plugin release
+name: Prepare plugin release draft
 
 on:
   push:
     tags: ["v*"]
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: Release tag matching the plugin version, for example v0.1.0
-        required: true
-        type: string
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  deploy:
-    runs-on: arc-opendeck-hdmi-matrix
-    env:
-      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  build:
+    name: Build and verify release payload
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    outputs:
+      commit: ${{ steps.identity.outputs.commit }}
+      package: ${{ steps.identity.outputs.package }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Require a new tag for a manual deployment
-        if: github.event_name == 'workflow_dispatch'
+      - name: Check out tagged source and complete history
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify tag identity
+        id: identity
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          set +e
-          git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null
-          status=$?
-          set -e
-
-          if [[ "$status" -eq 0 ]]; then
-            echo "Release tag $RELEASE_TAG already exists; refusing to publish a different commit under it." >&2
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tag must use vMAJOR.MINOR.PATCH: $RELEASE_TAG" >&2
             exit 1
           fi
-          if [[ "$status" -ne 2 ]]; then
-            exit "$status"
+          if [[ "$(git rev-parse HEAD)" != "$GITHUB_SHA" ]]; then
+            echo "Checked-out commit does not match the tag event commit" >&2
+            exit 1
           fi
-      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "Release commit must be reachable from origin/main" >&2
+            exit 1
+          fi
+          echo "commit=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          echo "package=com.beastyrabbit.hdmi-matrix.streamDeckPlugin" >> "$GITHUB_OUTPUT"
+      - name: Install pinned Gitleaks
+        run: .github/scripts/install-gitleaks.sh
+      - name: Scan complete Git history
+        run: gitleaks git --redact --verbose --timeout 120 .
+      - name: Install pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: 11.3.0
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - name: Install Node.js 20
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 24
+          node-version: 20
           cache: pnpm
-      - run: sudo apt-get update && sudo apt-get install --yes imagemagick gh jq
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm verify
-      - name: Check release tag matches manifest
-        run: test "$RELEASE_TAG" = "v$(jq -r .Version plugin/manifest.json)"
-      - name: Deploy GitHub release
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Audit dependencies
+        run: pnpm audit --audit-level high
+      - name: Verify source and package
+        run: pnpm verify
+      - name: Prove consecutive builds are identical
+        run: pnpm verify:reproducible
+      - name: Check tag and all version fields
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: pnpm release:check "$RELEASE_TAG"
+      - name: Scan release payload
+        run: gitleaks dir --max-archive-depth 2 --redact --verbose --timeout 120 dist
+      - name: Generate SHA-256 checksums
+        working-directory: dist
+        env:
+          PACKAGE: ${{ steps.identity.outputs.package }}
+        run: sha256sum "$PACKAGE" > SHA256SUMS
+      - name: Upload verified release payload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-${{ github.ref_name }}-${{ github.sha }}
+          path: |
+            dist/${{ steps.identity.outputs.package }}
+            dist/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 1
+
+  draft:
+    name: Attest and create release draft
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      attestations: write
+      contents: write
+      id-token: write
+    steps:
+      - name: Download verified release payload
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: release-${{ github.ref_name }}-${{ github.sha }}
+          path: payload
+      - name: Verify payload and remote tag target
+        shell: bash
+        env:
+          EXPECTED_COMMIT: ${{ needs.build.outputs.commit }}
+          GH_TOKEN: ${{ github.token }}
+          PACKAGE: ${{ needs.build.outputs.package }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          mapfile -t payload_files < <(find payload -maxdepth 1 -type f -printf '%f\n' | sort)
+          expected_files=("$PACKAGE" "SHA256SUMS")
+          mapfile -t expected_files < <(printf '%s\n' "${expected_files[@]}" | sort)
+          if [[ "${payload_files[*]}" != "${expected_files[*]}" ]]; then
+            echo "Unexpected release payload files: ${payload_files[*]}" >&2
+            exit 1
+          fi
+          (cd payload && sha256sum --check SHA256SUMS)
+
+          object_type=""
+          object_sha=""
+          ref_json="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG")"
+          object_type="$(jq -r '.object.type' <<< "$ref_json")"
+          object_sha="$(jq -r '.object.sha' <<< "$ref_json")"
+          for _ in 1 2 3 4; do
+            [[ "$object_type" == "tag" ]] || break
+            tag_json="$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$object_sha")"
+            object_type="$(jq -r '.object.type' <<< "$tag_json")"
+            object_sha="$(jq -r '.object.sha' <<< "$tag_json")"
+          done
+          if [[ "$object_type" != "commit" || "$object_sha" != "$EXPECTED_COMMIT" ]]; then
+            echo "Remote tag no longer targets the scanned commit $EXPECTED_COMMIT" >&2
+            exit 1
+          fi
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "A release for $RELEASE_TAG already exists; refusing to replace it" >&2
+            exit 1
+          fi
+      - name: Attest package provenance
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-checksums: payload/SHA256SUMS
+      - name: Create draft release exactly once
+        shell: bash
+        env:
+          EXPECTED_COMMIT: ${{ needs.build.outputs.commit }}
+          GH_TOKEN: ${{ github.token }}
+          PACKAGE: ${{ needs.build.outputs.package }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$RELEASE_TAG" \
+            "payload/$PACKAGE" \
+            payload/SHA256SUMS \
+            --draft \
+            --generate-notes \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$EXPECTED_COMMIT" \
+            --title "HDMI Matrix ${RELEASE_TAG#v}" \
+            --verify-tag
+      - name: Download and verify draft assets
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          PACKAGE: ${{ needs.build.outputs.package }}
+          RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
-            gh release create "$RELEASE_TAG" dist/*.streamDeckPlugin --generate-notes --verify-tag
-          else
-            gh release create "$RELEASE_TAG" dist/*.streamDeckPlugin --generate-notes --target "$GITHUB_SHA"
+          mkdir downloaded
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir downloaded
+          mapfile -t downloaded_files < <(find downloaded -maxdepth 1 -type f -printf '%f\n' | sort)
+          expected_files=("$PACKAGE" "SHA256SUMS")
+          mapfile -t expected_files < <(printf '%s\n' "${expected_files[@]}" | sort)
+          if [[ "${downloaded_files[*]}" != "${expected_files[*]}" ]]; then
+            echo "Unexpected downloaded draft assets: ${downloaded_files[*]}" >&2
+            exit 1
           fi
+          (cd downloaded && sha256sum --check SHA256SUMS)
+          cmp --silent "payload/$PACKAGE" "downloaded/$PACKAGE"
+          gh attestation verify "downloaded/$PACKAGE" --repo "$GITHUB_REPOSITORY"

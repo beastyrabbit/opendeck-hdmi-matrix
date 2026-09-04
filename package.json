@@ -11,9 +11,14 @@
 		"format": "biome format --write .",
 		"lint": "biome check .",
 		"pack": "pnpm build",
+		"preview": "tsx scripts/generate-preview.ts",
+		"preview:check": "tsx scripts/generate-preview.ts --check",
+		"release:check": "tsx scripts/check-release.ts",
 		"setup:opendeck": "tsx scripts/setup-opendeck.ts",
 		"test": "tsx --test tests/**/*.test.ts",
-		"verify": "pnpm check && pnpm lint && pnpm test && pnpm build"
+		"verify": "pnpm check && pnpm lint && pnpm test && pnpm preview:check && pnpm build",
+		"verify:package": "tsx scripts/verify-package.ts",
+		"verify:reproducible": "tsx scripts/verify-reproducible.ts"
 	},
 	"engines": {
 		"node": ">=20"
@@ -22,8 +27,10 @@
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.11",
 		"@elgato/cli": "^1.9.0",
-		"@types/node": "^26.4.0",
+		"@resvg/resvg-js": "2.6.2",
+		"@types/node": "^20.19.43",
 		"@types/ws": "^8.18.1",
+		"@zip.js/zip.js": "2.8.61",
 		"esbuild": "^0.28.2",
 		"tsx": "^4.23.13",
 		"typescript": "^7.0.2"
