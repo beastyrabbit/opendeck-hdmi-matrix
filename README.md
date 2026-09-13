@@ -1,5 +1,12 @@
 # HDMI Matrix for OpenDeck
 
+
+## At a glance
+
+An OpenDeck plugin for routing an HDCVT HDMI matrix from a Stream Deck XL.
+
+![Stream Deck XL profile](assets/preview.png)
+
 <img src="plugin/icons/plugin.svg" width="128" alt="HDMI Matrix plugin icon">
 
 Local Stream Deck control for an HDCVT HDMI matrix. The plugin shows only connected outputs, active inputs and renamed presets. Pick an output, then pick an input to route it.
