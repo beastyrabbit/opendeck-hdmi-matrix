@@ -36,12 +36,27 @@ interface RegistrationArguments {
 export class OpenDeckHost {
 	private readonly registration: RegistrationArguments;
 	private readonly socket: WebSocket;
+	private readonly closed: Promise<void>;
 	private readonly images = new Map<string, string>();
 	private handler?: EventHandler;
+	private connectPromise?: Promise<void>;
+	private connected = false;
 
 	constructor(argumentsList = process.argv.slice(2)) {
 		this.registration = parseRegistrationArguments(argumentsList);
 		this.socket = new WebSocket(`ws://127.0.0.1:${this.registration.port}`);
+		this.closed = new Promise((resolve) => {
+			this.socket.once("close", () => {
+				this.connected = false;
+				resolve();
+			});
+		});
+		this.socket.on("error", (error) => {
+			if (this.connected) {
+				console.error(`OpenDeck WebSocket error: ${error.message}`);
+				this.socket.terminate();
+			}
+		});
 	}
 
 	onEvent(handler: EventHandler): void {
@@ -49,21 +64,12 @@ export class OpenDeckHost {
 	}
 
 	async connect(): Promise<void> {
-		await new Promise<void>((resolve, reject) => {
-			this.socket.once("error", reject);
-			this.socket.once("open", () => {
-				this.send({ event: this.registration.registerEvent, uuid: this.registration.pluginUuid });
-				resolve();
-			});
-		});
-		this.socket.on("message", (message) => {
-			try {
-				const event = JSON.parse(message.toString()) as OpenDeckEvent;
-				Promise.resolve(this.handler?.(event)).catch((error: unknown) => this.log(error));
-			} catch (error) {
-				this.log(error);
-			}
-		});
+		this.connectPromise ??= this.openAndRegister();
+		await this.connectPromise;
+	}
+
+	waitUntilClosed(): Promise<void> {
+		return this.closed;
 	}
 
 	setImage(context: string, image: string): void {
@@ -91,6 +97,42 @@ export class OpenDeckHost {
 
 	private send(value: object): void {
 		if (this.socket.readyState === WebSocket.OPEN) this.socket.send(JSON.stringify(value));
+	}
+
+	private async openAndRegister(): Promise<void> {
+		await new Promise<void>((resolve, reject) => {
+			const cleanup = () => {
+				this.socket.off("open", onOpen);
+				this.socket.off("error", onError);
+				this.socket.off("close", onClose);
+			};
+			const onOpen = () => {
+				cleanup();
+				this.connected = true;
+				resolve();
+			};
+			const onError = (error: Error) => {
+				cleanup();
+				reject(error);
+			};
+			const onClose = () => {
+				cleanup();
+				reject(new Error("OpenDeck WebSocket closed before registration"));
+			};
+			this.socket.once("open", onOpen);
+			this.socket.once("error", onError);
+			this.socket.once("close", onClose);
+		});
+
+		this.socket.on("message", (message) => {
+			try {
+				const event = JSON.parse(message.toString()) as OpenDeckEvent;
+				Promise.resolve(this.handler?.(event)).catch((error: unknown) => this.log(error));
+			} catch (error) {
+				this.log(error);
+			}
+		});
+		this.socket.send(JSON.stringify({ event: this.registration.registerEvent, uuid: this.registration.pluginUuid }));
 	}
 }
 

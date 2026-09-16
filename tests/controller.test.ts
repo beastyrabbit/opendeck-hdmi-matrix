@@ -5,6 +5,7 @@ import { DEFAULT_CONFIG } from "../src/config.js";
 import { ACTION_PANEL, MatrixController } from "../src/controller.js";
 import type { MatrixApi } from "../src/matrix-api.js";
 import type { OpenDeckHost } from "../src/opendeck-host.js";
+import { renderOutput } from "../src/render.js";
 import { snapshot } from "./fixtures.js";
 
 it("selects an output and routes the pressed active input", async () => {
@@ -132,6 +133,45 @@ it("clears a selection when its output disconnects", async () => {
 
 	assert.deepEqual(calls, []);
 	assert.deepEqual(okCalls, ["ok"]);
+});
+
+it("discards an in-flight snapshot after the Matrix URL changes", async () => {
+	const images: string[] = [];
+	let resolveOldSnapshot: ((value: ReturnType<typeof snapshot>) => void) | undefined;
+	let signalOldSnapshotStarted: (() => void) | undefined;
+	const oldSnapshotStarted = new Promise<void>((resolve) => {
+		signalOldSnapshotStarted = resolve;
+	});
+	const oldApi = {
+		snapshot: () => {
+			signalOldSnapshotStarted?.();
+			return new Promise<ReturnType<typeof snapshot>>((resolve) => {
+				resolveOldSnapshot = resolve;
+			});
+		},
+	};
+	const current = snapshot();
+	current.video.alloutputname[0] = "New matrix";
+	const newApi = { snapshot: async () => current };
+	const host = {
+		...hostStub(),
+		setImage: (_context: string, image: string) => images.push(image),
+	};
+	const controller = new MatrixController(
+		host as unknown as OpenDeckHost,
+		oldApi as unknown as MatrixApi,
+		DEFAULT_CONFIG,
+	);
+
+	const appearing = controller.handle(event("willAppear", "output-1", { index: 1, role: "output" }));
+	await oldSnapshotStarted;
+	controller.setApi(newApi as unknown as MatrixApi);
+	const refreshed = controller.refresh();
+	resolveOldSnapshot?.(snapshot());
+	await Promise.all([appearing, refreshed]);
+	controller.dispose();
+
+	assert.deepEqual(images, [renderOutput(current, 1, true)]);
 });
 
 function hostStub(okCalls: string[] = []) {

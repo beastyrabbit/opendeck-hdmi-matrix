@@ -1,9 +1,10 @@
 {
 	"Name": "HDMI Matrix",
 	"Description": "Route an HDCVT HDMI matrix from an OpenDeck profile",
-	"Author": "Beasty",
+	"Author": "BeastyRabbit",
 	"Version": "0.1.0",
-	"UUID": "de.beasty.hdmi-matrix",
+	"UUID": "com.beastyrabbit.hdmi-matrix",
+	"URL": "https://github.com/beastyrabbit/opendeck-hdmi-matrix",
 	"CodePath": "bin/plugin.cjs",
 	"Icon": "icons/plugin",
 	"Category": "HDMI Matrix",
@@ -31,7 +32,7 @@
 	"Actions": [
 		{
 			"Name": "Matrix control panel",
-			"UUID": "de.beasty.hdmi-matrix.panel",
+			"UUID": "com.beastyrabbit.hdmi-matrix.panel",
 			"Icon": "icons/panel",
 			"Tooltip": "Dynamic key in the HDMI Matrix profile",
 			"Controllers": ["Keypad"],
