@@ -1,2 +1,4 @@
 allowBuilds:
   esbuild: true
+# Expand script globs the same way on every OS; Node 20's test runner does not expand them itself.
+shellEmulator: true

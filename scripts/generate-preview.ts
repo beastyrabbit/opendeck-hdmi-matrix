@@ -77,7 +77,18 @@ const cells = keys
 	.join("");
 
 const preview = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" fill="#181B1D"/>${cells}</svg>`;
-const png = new Resvg(preview).render().asPng();
+// Host fonts differ between platforms, so render with bundled Arial-compatible Arimo for byte-identical output.
+const fonts = resolve(root, "node_modules", "@expo-google-fonts", "arimo");
+const png = new Resvg(preview, {
+	font: {
+		loadSystemFonts: false,
+		fontFiles: [resolve(fonts, "400Regular", "Arimo_400Regular.ttf"), resolve(fonts, "700Bold", "Arimo_700Bold.ttf")],
+		defaultFontFamily: "Arimo",
+		sansSerifFamily: "Arimo",
+	},
+})
+	.render()
+	.asPng();
 const output = resolve(root, "assets", "preview.png");
 if (process.argv.includes("--check")) {
 	const current = await readFile(output);

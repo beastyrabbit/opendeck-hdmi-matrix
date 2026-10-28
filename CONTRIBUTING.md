@@ -4,7 +4,7 @@ Small, focused fixes and compatibility reports are welcome. Open an issue before
 
 ## Development
 
-Use Node.js 20 or newer and pnpm 11.3.0.
+Use pnpm 11.3.0. It needs Node.js 22.13 or newer unless you install its standalone build. The plugin and setup script themselves run on Node.js 20 or newer.
 
 ```bash
 pnpm install --frozen-lockfile

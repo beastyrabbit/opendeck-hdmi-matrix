@@ -142,8 +142,10 @@ export function expectedFiles(): string[] {
 
 function verifyElgatoValidator(plugin: string): void {
 	const pnpmCli = process.env.npm_execpath;
-	const command = pnpmCli ? process.execPath : process.platform === "win32" ? "pnpm.cmd" : "pnpm";
-	const prefix = pnpmCli ? [pnpmCli] : [];
+	// Standalone pnpm reports its native executable, which Node cannot load as a script.
+	const runWithNode = pnpmCli !== undefined && /\.[cm]?js$/i.test(pnpmCli);
+	const command = runWithNode ? process.execPath : (pnpmCli ?? (process.platform === "win32" ? "pnpm.cmd" : "pnpm"));
+	const prefix = runWithNode ? [pnpmCli] : [];
 	const result = spawnSync(command, [...prefix, "exec", "streamdeck", "validate", "--no-update-check", plugin], {
 		encoding: "utf8",
 	});
