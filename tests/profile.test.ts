@@ -15,7 +15,7 @@ import {
 it("creates the requested four-row Stream Deck XL layout", () => {
 	const profile = createProfile() as {
 		keys: Array<{
-			action?: { property_inspector?: string; uuid?: string };
+			action?: { name?: string; property_inspector?: string; tooltip?: string; uuid?: string };
 			settings?: { index?: number; profile?: string; role?: string };
 		} | null>;
 	};
@@ -39,6 +39,14 @@ it("creates the requested four-row Stream Deck XL layout", () => {
 	assert.equal(profile.keys[19]?.settings?.role, "mute");
 	assert.equal(profile.keys[20]?.settings?.role, "stream");
 	assert.equal(profile.keys[0]?.action?.property_inspector, "");
+	assert.equal(profile.keys[0]?.action?.name, "HDMI output 1");
+	assert.equal(profile.keys[8]?.action?.name, "HDMI preset 1");
+	assert.equal(profile.keys[24]?.action?.name, "HDMI input 1");
+	assert.equal(profile.keys[17]?.action?.name, "Selected HDMI output");
+	assert.equal(profile.keys[18]?.action?.name, "HDMI ARC");
+	assert.equal(profile.keys[19]?.action?.name, "HDMI audio mute");
+	assert.equal(profile.keys[20]?.action?.name, "HDMI output stream");
+	assert.equal(profile.keys[23]?.action?.name, "Refresh HDMI Matrix");
 });
 
 it("creates a user-facing launcher with hidden profile routing", () => {
@@ -49,7 +57,7 @@ it("creates a user-facing launcher with hidden profile routing", () => {
 	assert.equal(launcher.action.uuid, "com.amansprojects.starterpack.switchprofile");
 	assert.equal(
 		launcher.action.property_inspector,
-		"plugins/de.beasty.hdmi-matrix.sdPlugin/property-inspector/index.html",
+		"plugins/com.beastyrabbit.hdmi-matrix.sdPlugin/property-inspector/index.html",
 	);
 	assert.equal(launcher.settings.profile, "Studio Matrix");
 });
@@ -65,6 +73,7 @@ it("recognizes the published native launcher when its target profile changes", (
 	const publishedLauncher = {
 		action: {
 			icon: "plugins/de.beasty.hdmi-matrix.sdPlugin/icons/launcher.png",
+			plugin: "com.amansprojects.starterpack.sdPlugin",
 			property_inspector: "plugins/com.amansprojects.starterpack.sdPlugin/propertyInspector/switchProfile.html",
 			uuid: "com.amansprojects.starterpack.switchprofile",
 		},
@@ -77,6 +86,27 @@ it("recognizes the published native launcher when its target profile changes", (
 it("recognizes only plugin-managed Matrix profiles for migration", () => {
 	assert.equal(isManagedMatrixProfile(createProfile()), true);
 	assert.equal(isManagedMatrixProfile({ keys: [launcherSlot(0)] }), false);
+	const edited = structuredClone(createProfile()) as { keys: Array<unknown> };
+	edited.keys[23] = null;
+	assert.equal(isManagedMatrixProfile(edited), false);
+	const impostor = structuredClone(createProfile()) as {
+		keys: Array<{ action?: { uuid?: string } } | null>;
+	};
+	if (impostor.keys[1]?.action) impostor.keys[1].action.uuid = "user.action";
+	assert.equal(isManagedMatrixProfile(impostor), false);
+});
+
+it("does not claim an ordinary Starter Pack profile switch", () => {
+	const userLauncher = {
+		action: {
+			icon: "plugins/com.amansprojects.starterpack.sdPlugin/icons/switch.png",
+			plugin: "com.amansprojects.starterpack.sdPlugin",
+			property_inspector: "plugins/com.amansprojects.starterpack.sdPlugin/propertyInspector/switchProfile.html",
+			uuid: "com.amansprojects.starterpack.switchprofile",
+		},
+		settings: { profile: "HDMI Matrix" },
+	};
+	assert.equal(isManagedLauncher(userLauncher, "HDMI Matrix"), false);
 });
 
 it("recognizes the same profile file across case-only path changes", () => {

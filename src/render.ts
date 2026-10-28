@@ -75,12 +75,14 @@ export type Control = "arc" | "back" | "mute" | "refresh" | "stream";
 
 export function renderControl(control: Control, active: boolean, selectedOutput: number): string {
 	const accent = controlAccent(control, active);
+	const stateLabel = controlStateLabel(control, active);
 	return svgData(`
 		<rect width="144" height="144" fill="${COLORS.ink}"/>
 		<rect x="8" y="8" width="128" height="128" rx="16" fill="${active ? COLORS.slate : COLORS.ink}" stroke="${accent}" stroke-width="${active ? 7 : 3}"/>
 		${control === "back" || control === "refresh" ? "" : outputBadge(selectedOutput, accent)}
 		${controlIcon(control, active, accent)}
-		${active && control !== "refresh" ? `<circle cx="119" cy="119" r="8" fill="${accent}"/>` : ""}
+		${stateLabel ? controlStateBadge(stateLabel, accent, active) : ""}
+		${active && control === "back" ? `<circle cx="119" cy="119" r="8" fill="${accent}"/>` : ""}
 	`);
 }
 
@@ -140,10 +142,24 @@ function controlAccent(control: Control, active: boolean): string {
 	return COLORS.soft;
 }
 
+function controlStateLabel(control: Control, active: boolean): string | undefined {
+	if (control === "arc") return `ARC ${active ? "ON" : "OFF"}`;
+	if (control === "mute") return `MUTE ${active ? "ON" : "OFF"}`;
+	if (control === "stream") return `STREAM ${active ? "ON" : "OFF"}`;
+	return undefined;
+}
+
+function controlStateBadge(label: string, accent: string, active: boolean): string {
+	return `
+		<rect x="20" y="108" width="104" height="25" rx="12" fill="${active ? accent : COLORS.ink}" stroke="${accent}" stroke-width="2"/>
+		<text x="72" y="126" text-anchor="middle" fill="${active ? COLORS.ink : COLORS.paper}" font-family="Arial, sans-serif" font-size="14" font-weight="900">${label}</text>
+	`;
+}
+
 function controlIcon(control: Control, active: boolean, accent: string): string {
 	const common = `fill="none" stroke="${accent}" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"`;
 	if (control === "arc") {
-		return `<path d="M105 52H58c-15 0-26 12-26 27s11 27 26 27h35" ${common}/><path d="m78 89 17 17-17 17" ${common}/>`;
+		return `<path d="M105 49H58c-15 0-26 10-26 21s11 21 26 21h35" ${common}/><path d="m78 76 15 15-15 15" ${common}/>`;
 	}
 	if (control === "mute") {
 		return `
@@ -153,9 +169,8 @@ function controlIcon(control: Control, active: boolean, accent: string): string 
 	}
 	if (control === "stream") {
 		return `
-			<rect x="30" y="45" width="84" height="61" rx="9" fill="${active ? accent : "none"}" stroke="${accent}" stroke-width="8"/>
-			<path d="m62 60 31 16-31 16z" fill="${active ? COLORS.ink : accent}"/>
-			<path d="M52 120h40" ${common}/>
+			<rect x="30" y="45" width="84" height="55" rx="9" fill="${active ? accent : "none"}" stroke="${accent}" stroke-width="8"/>
+			<path d="m62 57 31 16-31 16z" fill="${active ? COLORS.ink : accent}"/>
 		`;
 	}
 	if (control === "refresh") {
