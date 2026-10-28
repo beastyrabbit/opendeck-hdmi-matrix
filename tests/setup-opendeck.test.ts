@@ -63,14 +63,16 @@ it("atomically replaces a profile, preserves its mode and keeps a recovery backu
 	const path = resolve(root, "Default.json");
 	await writeFile(path, "before\n");
 	await chmod(path, 0o640);
+	// Windows keeps only the read-only flag and reports writable files as 0o666.
+	const mode = (await lstat(path)).mode & 0o777;
 	const snapshot = await readRegularSnapshot(path, "Default profile");
 	assert.ok(snapshot);
 	const backup = await writeRegularFileAtomically(path, "after\n", snapshot, root);
 	assert.ok(backup);
 	assert.equal(await readFile(path, "utf8"), "after\n");
 	assert.equal(await readFile(backup, "utf8"), "before\n");
-	assert.equal((await lstat(path)).mode & 0o777, 0o640);
-	assert.equal((await lstat(backup)).mode & 0o777, 0o640);
+	assert.equal((await lstat(path)).mode & 0o777, mode);
+	assert.equal((await lstat(backup)).mode & 0o777, mode);
 });
 
 it("replaces the plugin directory without retaining stale files", async (context) => {
