@@ -7,7 +7,8 @@
 			"name": "Worktree einrichten",
 			"command": "pnpm install --frozen-lockfile",
 			"icon": "configure",
-			"runOnWorktreeCreate": true
+			"runOnWorktreeCreate": true,
+			"async": false
 		},
 		{
 			"name": "Plugin prüfen",
