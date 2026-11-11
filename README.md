@@ -193,7 +193,7 @@ pnpm deploy -- --dry-run
 
 The dry run still refreshes the local `dist/` build. Automatic process restart is Linux-only. On macOS and Windows, use `pnpm build`, quit OpenDeck and run the bundled setup script manually.
 
-The checked-in `t3.json` exposes setup, verification, build and local deployment in T3 Code's project scripts menu. Its **In OpenDeck deployen** entry runs the same `pnpm deploy` command.
+The checked-in `t3.json` defines T3 Code project actions for setup, verification, build and local deployment. T3 Code does not read it directly: the actions take effect once they are imported into the machine's T3 Code project settings. After that, **Worktree einrichten** runs `pnpm install --frozen-lockfile` when a new worktree is created, and **In OpenDeck deployen** runs the same `pnpm deploy` command manually.
 
 ### GitHub release deployment
 
