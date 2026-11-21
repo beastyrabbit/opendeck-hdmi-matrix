@@ -197,7 +197,20 @@ The checked-in `t3.json` defines T3 Code project actions for setup, verification
 
 ### GitHub release deployment
 
-The **Deploy plugin release** workflow verifies, packages and publishes the installable `.streamDeckPlugin`. It runs for `v*` tags and can also be started manually with a new `vMAJOR.MINOR.PATCH` tag that matches `plugin/manifest.json`.
+The **Deploy plugin release** workflow verifies, packages and publishes the installable `.streamDeckPlugin`. Push an existing-version `vMAJOR.MINOR.PATCH` tag matching `plugin/manifest.json`, `package.json` and the packaged version (which adds `.0`). The tagged commit must belong to `main` and have a successful **CI** push run, including Linux, macOS and Windows verification. A manual retry requires an existing tag and that same tag selected as the workflow ref; it never creates a tag.
+
+The build runs with read-only repository access, scans the complete history and unpacked payload with Gitleaks, audits dependencies and passes verified assets to a separate publisher. The publisher checks `SHA256SUMS`, generates GitHub build-provenance attestations, creates a draft, downloads and verifies its assets, then publishes it. Repository release immutability must be enabled; published tags and assets cannot be replaced. A failed draft inspection leaves the draft unpublished for diagnosis.
+
+To verify a downloaded release in a clean directory:
+
+```bash
+gh release download v0.1.0 --repo beastyrabbit/opendeck-hdmi-matrix
+sha256sum --check SHA256SUMS
+gh attestation verify com.beastyrabbit.hdmi-matrix.streamDeckPlugin \
+  --repo beastyrabbit/opendeck-hdmi-matrix \
+  --source-ref refs/tags/v0.1.0 \
+  --signer-workflow beastyrabbit/opendeck-hdmi-matrix/.github/workflows/release.yml
+```
 
 ## OpenAction Marketplace
 
@@ -214,7 +227,7 @@ The catalogue `name` and `author` must exactly match `plugin/manifest.json`. Ope
 ## Known limitations
 
 - The managed profile needs a 32-key Stream Deck XL.
-- The profile stays open until the Back key is pressed. Automatic return after inactivity is tracked in [issue #1](https://github.com/beastyrabbit/opendeck-hdmi-matrix/issues/1) for a later release.
+- The profile stays open until the Back key is pressed. Automatic return after inactivity remains blocked in [issue #1](https://github.com/beastyrabbit/opendeck-hdmi-matrix/issues/1): OpenDeck allows only its built-in profile-switch action to switch profiles. A third-party plugin timer cannot perform that switch through the current host protocol.
 - Marketplace installation still requires the one-time terminal setup described above.
 
 ## License
