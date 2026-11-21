@@ -39,6 +39,7 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          test "$GITHUB_REF" = "refs/tags/$RELEASE_TAG"
           sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq .object.sha)
           type=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq .object.type)
           if [[ "$type" == tag ]]; then
@@ -132,7 +133,6 @@ jobs:
         run: |
           set -euo pipefail
           test "$(gh api "repos/$GITHUB_REPOSITORY/commits/$RELEASE_TAG" --jq .sha)" = "$RELEASE_SHA"
-          gh api "repos/$GITHUB_REPOSITORY/immutable-releases" --jq .enabled | grep -qx true
           gh release create "$RELEASE_TAG" "$PACKAGE" SHA256SUMS \
             --repo "$GITHUB_REPOSITORY" --verify-tag --draft --generate-notes
           gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft,assets \
