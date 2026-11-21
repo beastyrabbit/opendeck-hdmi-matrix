@@ -6,53 +6,146 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Release tag matching the plugin version, for example v0.1.0
+        description: Existing release tag; select the same tag as the workflow ref
         required: true
         type: string
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  PACKAGE: com.beastyrabbit.hdmi-matrix.streamDeckPlugin
 
 jobs:
-  deploy:
-    runs-on: arc-opendeck-hdmi-matrix
-    env:
-      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      sha: ${{ steps.ref.outputs.sha }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Require a new tag for a manual deployment
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          set +e
-          git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null
-          status=$?
-          set -e
-
-          if [[ "$status" -eq 0 ]]; then
-            echo "Release tag $RELEASE_TAG already exists; refusing to publish a different commit under it." >&2
-            exit 1
-          fi
-          if [[ "$status" -ne 2 ]]; then
-            exit "$status"
-          fi
-      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
-        with:
-          version: 11.3.0
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: sudo apt-get update && sudo apt-get install --yes imagemagick gh jq
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm verify
-      - name: Check release tag matches manifest
-        run: test "$RELEASE_TAG" = "v$(jq -r .Version plugin/manifest.json)"
-      - name: Deploy GitHub release
+      - name: Validate existing release ref
+        id: ref
         env:
           GH_TOKEN: ${{ github.token }}
+        shell: bash
         run: |
-          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
-            gh release create "$RELEASE_TAG" dist/*.streamDeckPlugin --generate-notes --verify-tag
-          else
-            gh release create "$RELEASE_TAG" dist/*.streamDeckPlugin --generate-notes --target "$GITHUB_SHA"
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          test "$GITHUB_REF" = "refs/tags/$RELEASE_TAG"
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq .object.sha)
+          type=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq .object.type)
+          if [[ "$type" == tag ]]; then
+            sha=$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$sha" --jq .object.sha)
           fi
+          test "$sha" = "$GITHUB_SHA"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+      - name: Check out scanned release commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ steps.ref.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require successful main CI for this exact commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+          gh api --method GET "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs" \
+            -f head_sha="$GITHUB_SHA" -f branch=main -f event=push -f status=success \
+            --jq '.workflow_runs | length > 0' | grep -qx true
+      - name: Install pinned Gitleaks
+        run: .github/scripts/install-gitleaks.sh
+      - name: Scan complete Git history
+        run: gitleaks git --redact --verbose --timeout 120 .
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 11.3.0
+          standalone: true
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm audit --audit-level high
+      - run: pnpm verify
+      - run: pnpm release:check
+      - name: Scan unpacked release payload
+        run: gitleaks dir --redact --verbose --timeout 120 "dist/com.beastyrabbit.hdmi-matrix.sdPlugin"
+      - name: Generate checksums
+        working-directory: dist
+        run: sha256sum "$PACKAGE" > SHA256SUMS
+      - name: Pass verified release assets to publisher
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: verified-release
+          path: |
+            dist/com.beastyrabbit.hdmi-matrix.streamDeckPlugin
+            dist/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      attestations: write
+      id-token: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_SHA: ${{ needs.build.outputs.sha }}
+    steps:
+      - name: Download verified assets without checking out or executing source
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: verified-release
+          path: release
+      - name: Verify transferred payload
+        working-directory: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find . -type f | wc -l)" -eq 2
+          test "$(wc -l < SHA256SUMS)" -eq 1
+          grep -Eq "^[0-9a-f]{64}  com\.beastyrabbit\.hdmi-matrix\.streamDeckPlugin$" SHA256SUMS
+          sha256sum --check SHA256SUMS
+      - name: Attest the verified package and checksum file
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          create-storage-record: false
+          subject-path: |
+            release/com.beastyrabbit.hdmi-matrix.streamDeckPlugin
+            release/SHA256SUMS
+      - name: Create, inspect and publish immutable release
+        working-directory: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(gh api "repos/$GITHUB_REPOSITORY/commits/$RELEASE_TAG" --jq .sha)" = "$RELEASE_SHA"
+          gh release create "$RELEASE_TAG" "$PACKAGE" SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" --verify-tag --draft --generate-notes
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft,assets \
+            --jq '.isDraft and ([.assets[].name] | sort == ["SHA256SUMS", "com.beastyrabbit.hdmi-matrix.streamDeckPlugin"])' | grep -qx true
+          mkdir downloaded
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir downloaded
+          (cd downloaded && sha256sum --check SHA256SUMS)
+          cmp "$PACKAGE" "downloaded/$PACKAGE"
+          cmp SHA256SUMS downloaded/SHA256SUMS
+          gh attestation verify "downloaded/$PACKAGE" --repo "$GITHUB_REPOSITORY" \
+            --source-ref "refs/tags/$RELEASE_TAG" --source-digest "$RELEASE_SHA" \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/commits/$RELEASE_TAG" --jq .sha)" = "$RELEASE_SHA"
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft,isImmutable \
+            --jq '(.isDraft | not) and .isImmutable' | grep -qx true
